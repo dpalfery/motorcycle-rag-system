@@ -354,19 +354,30 @@ jobs:
           echo "$RUNNER_TEMP/trivy/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/trivy/bin/trivy" --version
 
+      # Scan once to JSON, then convert to both SARIF (for GitHub Security) and
+      # table (for the job log). Scanning straight to SARIF leaves a failing job
+      # with no findings printed anywhere in the log.
       - name: Scan repository with Trivy
         run: |
           trivy fs \
             --scanners vuln,misconfig,secret,license \
             --severity HIGH,CRITICAL \
-            --exit-code 1 \
-            --format sarif \
-            --output trivy.sarif \
+            --format json \
+            --output trivy.json \
             --skip-dirs .git \
             --skip-dirs .kilo \
             --skip-dirs .opencode \
             --skip-dirs .pnpm-store \
             .
+
+      - name: Convert Trivy report to SARIF
+        if: always() && hashFiles('trivy.json') != ''
+        run: trivy convert --format sarif --output trivy.sarif trivy.json
+
+      # Prints every HIGH/CRITICAL finding, then fails the job if any exist.
+      - name: Report Trivy findings
+        if: always() && hashFiles('trivy.json') != ''
+        run: trivy convert --format table --exit-code 1 trivy.json
 
       - name: Upload Trivy SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4

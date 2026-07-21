@@ -137,7 +137,9 @@ class TestExtract:
         from extraction.metadata_extractor import MetadataExtractor
 
         first = {"make": "Yamaha", "model": "", "year": 0, "category": ""}
-        second = {"make": "", "model": "MT-07", "year": 2021, "category": "naked"}
+        # "sport" not "naked": category is constrained to the four indexed wire-values,
+        # and an off-list value is blanked (see TestCategoryConstraint).
+        second = {"make": "", "model": "MT-07", "year": 2021, "category": "sport"}
         _configure_mock_client(MockOpenAI, [json.dumps(first), json.dumps(second)])
 
         extractor = MetadataExtractor()
@@ -146,7 +148,7 @@ class TestExtract:
         assert result["make"] == "Yamaha"  # retained from first sample
         assert result["model"] == "MT-07"
         assert result["year"] == 2021
-        assert result["category"] == "naked"
+        assert result["category"] == "sport"
         assert result["fill_rate"] == 1.0
         assert result["pages_sampled"] == 2
 
@@ -328,6 +330,210 @@ class TestExtract:
 # ---------------------------------------------------------------------------
 # source_path context (file-path hints forwarded to the LLM)
 # ---------------------------------------------------------------------------
+
+
+class TestCategoryConstraint:
+    """Category must be one of the four indexed wire-values.
+
+    Each maps to a physical `motorcycle-{category}` Azure AI Search index, so an
+    off-list value (models like to volunteer "supersport" or "naked") resolves to an
+    index that does not exist.
+    """
+
+    def test_categories_match_the_indexed_set(self):
+        from extraction.metadata_extractor import MOTORCYCLE_CATEGORIES
+
+        # Mirrors MotorcycleSearchIndexNaming.AllCategoryWireValues in 0-Base.
+        assert MOTORCYCLE_CATEGORIES == ("dirt", "touring", "sport", "cruiser")
+
+    def test_prompt_enumerates_the_allowed_categories(self):
+        from extraction.metadata_extractor import (
+            MOTORCYCLE_CATEGORIES,
+            METADATA_SYSTEM_PROMPT,
+        )
+
+        for category in MOTORCYCLE_CATEGORIES:
+            assert f'"{category}"' in METADATA_SYSTEM_PROMPT
+
+    def test_schema_enum_pins_category_and_allows_unknown(self):
+        from extraction.metadata_extractor import METADATA_JSON_SCHEMA
+
+        enum = METADATA_JSON_SCHEMA["schema"]["properties"]["category"]["enum"]
+        assert enum == ["dirt", "touring", "sport", "cruiser", ""]
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("sport", "sport"),
+            ("Sport", "sport"),
+            ("  CRUISER  ", "cruiser"),
+            ("supersport", ""),
+            ("naked", ""),
+            ("", ""),
+            (None, ""),
+            (123, ""),
+        ],
+    )
+    def test_normalize_category(self, raw, expected):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        assert MetadataExtractor._normalize_category(raw) == expected
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_off_list_category_is_dropped_not_indexed(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        # Only reachable via the ungrammared json_object/text fallbacks, where the
+        # decoder cannot enforce the enum.
+        off_list = {
+            "make": "Yamaha",
+            "model": "YZF-R6S",
+            "year": 2007,
+            "category": "supersport",
+        }
+        _configure_mock_client(MockOpenAI, json.dumps(off_list))
+
+        result = await MetadataExtractor().extract(_TEN_PAGES)
+
+        # Blanked, so the job pauses for manual entry instead of routing to a
+        # "motorcycle-supersport" index that does not exist.
+        assert result["category"] is None
+        assert result["fill_rate"] == 0.75
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_valid_category_is_lowercased_on_the_way_through(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        _configure_mock_client(
+            MockOpenAI,
+            json.dumps({**_FULL_RESULT, "category": "Cruiser"}),
+        )
+
+        result = await MetadataExtractor().extract(_TEN_PAGES)
+
+        assert result["category"] == "cruiser"
+        assert result["fill_rate"] == 1.0
+
+
+class TestResponseFormatNegotiation:
+    """Servers disagree on which response_format values they accept.
+
+    Regression: current LM Studio builds reject ``{"type": "json_object"}`` with a 400
+    ("'response_format.type' must be 'json_schema' or 'text'"). A 400 is not transient,
+    so ``_query_llm_with_retry`` never retried it and ``extract`` aborted before
+    recording a sample — surfacing as "0 pages (fill rate 0%)" with no LLM response ever
+    logged, which sent every job to manual entry.
+    """
+
+    @staticmethod
+    def _bad_request(message: str) -> "Exception":
+        import httpx
+        import openai
+
+        return openai.BadRequestError(
+            message,
+            response=httpx.Response(
+                400, request=httpx.Request("POST", "http://localhost:9999/v1")
+            ),
+            body=None,
+        )
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_defaults_to_json_schema(self, MockOpenAI):
+        from extraction.metadata_extractor import METADATA_JSON_SCHEMA, MetadataExtractor
+
+        _configure_mock_client(MockOpenAI, json.dumps(_FULL_RESULT))
+
+        await MetadataExtractor().extract(_TEN_PAGES)
+
+        create = MockOpenAI.return_value.chat.completions.create
+        response_format = create.await_args.kwargs["response_format"]
+        assert response_format["type"] == "json_schema"
+        assert response_format["json_schema"] is METADATA_JSON_SCHEMA
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_falls_back_when_json_schema_rejected(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        mock_client = MockOpenAI.return_value
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[
+                self._bad_request("'response_format.type' must be 'text'"),
+                _mock_llm_response(json.dumps(_FULL_RESULT)),
+            ]
+        )
+
+        result = await MetadataExtractor().extract(_TEN_PAGES)
+
+        # The rejection is absorbed, not surfaced as a failed extraction.
+        assert result["fill_rate"] == 1.0
+        assert result["pages_sampled"] == 1
+        formats = [
+            c.kwargs["response_format"]["type"]
+            for c in mock_client.chat.completions.create.await_args_list
+        ]
+        assert formats == ["json_schema", "json_object"]
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_degrades_all_the_way_to_text(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        mock_client = MockOpenAI.return_value
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[
+                self._bad_request("json_schema unsupported"),
+                self._bad_request("json_object unsupported"),
+                _mock_llm_response(json.dumps(_FULL_RESULT)),
+            ]
+        )
+
+        result = await MetadataExtractor().extract(_TEN_PAGES)
+
+        assert result["fill_rate"] == 1.0
+        formats = [
+            c.kwargs["response_format"]["type"]
+            for c in mock_client.chat.completions.create.await_args_list
+        ]
+        assert formats == ["json_schema", "json_object", "text"]
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_bad_request_on_text_floor_is_not_swallowed(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        # A 400 that survives to the "text" floor is about something else entirely
+        # (context length, unknown model) and must not loop forever.
+        mock_client = MockOpenAI.return_value
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=self._bad_request("context length exceeded")
+        )
+
+        result = await MetadataExtractor().extract(_TEN_PAGES)
+
+        assert result["fill_rate"] == 0.0
+        assert mock_client.chat.completions.create.await_count == 3
+
+    @patch("extraction.metadata_extractor.openai.AsyncOpenAI")
+    async def test_negotiated_mode_is_reused_across_samples(self, MockOpenAI):
+        from extraction.metadata_extractor import MetadataExtractor
+
+        partial = {"make": "Honda", "model": "CBR", "year": 0, "category": ""}
+        mock_client = MockOpenAI.return_value
+        mock_client.chat.completions.create = AsyncMock(
+            side_effect=[
+                self._bad_request("json_schema unsupported"),
+                _mock_llm_response(json.dumps(partial)),
+                _mock_llm_response(json.dumps(_FULL_RESULT)),
+            ]
+        )
+
+        await MetadataExtractor().extract(_TEN_PAGES)
+
+        # json_schema is tried once, never re-attempted on the second page sample.
+        formats = [
+            c.kwargs["response_format"]["type"]
+            for c in mock_client.chat.completions.create.await_args_list
+        ]
+        assert formats == ["json_schema", "json_object", "json_object"]
 
 
 class TestSourcePathContext:

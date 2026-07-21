@@ -18,7 +18,7 @@ Read the full [working agreement](6-Docs/system/agent-governance.md), [security 
 
 ## Documentation and placement
 
-Before changing a cataloged component, read the [documentation standard](6-Docs/documentation-standard.md), [component catalog](6-Docs/catalog.md), the source-root README, and the component's detailed documentation. Update canonical documentation when the public interface, configuration, architecture, runtime, operations, or workflow changes.
+Start from the [documentation index](6-Docs/README.md); it is the canonical entry point to system, component, operational, and change-history documentation. Before changing a cataloged component, read the [documentation standard](6-Docs/documentation-standard.md), [component catalog](6-Docs/catalog.md), the source-root README, and the component's detailed documentation. Update canonical documentation when the public interface, configuration, architecture, runtime, operations, or workflow changes.
 
 ## Plan closeout
 
@@ -44,7 +44,6 @@ Before creating, moving, renaming, or placing source/test files, or changing nam
 | Core, Application, Domain, Contracts, Persistence | nearest scoped `AGENTS.md` | [Architecture rules](6-Docs/rules/architecture-general.md) |
 | Tests | nearest test-suite `AGENTS.md` | affected component documentation and requirements |
 | Infrastructure | [Infrastructure AGENTS](7-Deployment/infrastructure/AGENTS.md) | [DevOps documentation](6-Docs/DevOps/) and [Azure environment](6-Docs/AzureEnvironment/) |
-| Codex configuration | [.codex AGENTS](.codex/AGENTS.md) | repository rules in this file remain controlling |
 
 ## Instruction hierarchy
 
@@ -56,6 +55,7 @@ Before creating, moving, renaming, or placing source/test files, or changing nam
 
 Agents and skills should look up the following properties dynamically to find the relevant documentation and references for this repository:
 
+- **Documentation Index:** `6-Docs/README.md`
 - **Documentation Standard:** `6-Docs/documentation-standard.md`
 - **Clean Architecture Rules:** `6-Docs/rules/architecture-general.md`
 - **Component Catalog:** `6-Docs/catalog.md`

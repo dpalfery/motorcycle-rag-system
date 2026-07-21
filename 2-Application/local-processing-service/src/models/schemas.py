@@ -201,7 +201,10 @@ class MetadataResult(BaseModel):
     year: int = Field(0, description="Model year (0 if unknown)")
     category: Optional[str] = Field(
         None,
-        description="Motorcycle category (e.g., sport, cruiser, touring, naked)",
+        description=(
+            "Motorcycle category — one of dirt, touring, sport, cruiser. Each maps to a "
+            "motorcycle-{category} search index; off-list values are normalized away."
+        ),
     )
     tags: List[str] = Field(
         default_factory=list, description="Optional tags extracted from the document"

@@ -69,7 +69,16 @@ def _approx_tokens(text: str) -> int:
     return len(text) // 4
 
 
-METADATA_SYSTEM_PROMPT = """You are a motorcycle document metadata extractor.
+#: The four canonical category wire-values. Each one maps to a physical Azure AI Search
+#: index named ``motorcycle-{category}``, so a category outside this set has no index to
+#: route to. The C# source of truth is
+#: ``MotorcycleSearchIndexNaming.AllCategoryWireValues`` (0-Base/MotorcycleRAG.Core);
+#: this list must stay in step with it. Keep the order identical for easy diffing.
+MOTORCYCLE_CATEGORIES = ("dirt", "touring", "sport", "cruiser")
+
+_CATEGORY_LIST = ", ".join(f'"{c}"' for c in MOTORCYCLE_CATEGORIES)
+
+METADATA_SYSTEM_PROMPT = f"""You are a motorcycle document metadata extractor.
 
 CRITICAL: Return ONLY a valid JSON object. No markdown, no explanations, no text before or after.
 
@@ -77,13 +86,58 @@ Extract these fields from the document:
 - make: Manufacturer name (e.g., "Honda", "Yamaha")
 - model: Model name (e.g., "CBR600RR", "YZF-R1")
 - year: Model year as integer (e.g., 2023)
-- category: Category (e.g., "sport", "cruiser", "touring")
+- category: EXACTLY one of these four values: {_CATEGORY_LIST}
 - tags: List of relevant tags (e.g., ["sport", "inline-4"])
 
-If a field cannot be determined, use null for strings and 0 for year.
+The category MUST be one of the four listed values and nothing else. Map any other
+description to the closest match — a supersport, sportbike, naked, or streetfighter is
+"sport"; an adventure or sport-touring bike is "touring"; a motocross, enduro, or
+dual-sport bike is "dirt"; a bagger or chopper is "cruiser". Use "" only when the
+document gives no indication of the bike's type at all. Keeping a more specific term
+like "supersport" in tags is encouraged — tags are unconstrained.
+
+If a field cannot be determined, use an empty string for text fields and 0 for year.
 
 Example output:
-{"make":"Honda","model":"CBR600RR","year":2023,"category":"sport","tags":["sport","inline-4","600cc"]}"""
+{{"make":"Honda","model":"CBR600RR","year":2023,"category":"sport","tags":["sport","inline-4","600cc"]}}"""
+
+
+#: Structured-output schema for the extracted metadata. Field types are deliberately
+#: plain (no ``["string", "null"]`` unions) — LM Studio's MLX engine rejects union types
+#: with ``ValueError: 'type' must be a string``. Unknown values are the empty string / 0,
+#: which ``_merge`` already treats as unfilled.
+#:
+#: ``category`` is enum-constrained so the decoder physically cannot emit an off-list
+#: value (models otherwise volunteer plausible-but-unroutable ones like "supersport").
+#: The empty string is an allowed member so "could not determine" stays expressible and
+#: still routes the job to manual entry rather than being silently defaulted.
+METADATA_JSON_SCHEMA = {
+    "name": "motorcycle_metadata",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "make": {"type": "string"},
+            "model": {"type": "string"},
+            "year": {"type": "integer"},
+            "category": {
+                "type": "string",
+                "enum": [*MOTORCYCLE_CATEGORIES, ""],
+            },
+            "tags": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["make", "model", "year", "category", "tags"],
+        "additionalProperties": False,
+    },
+}
+
+#: Response-format modes in preference order. Servers disagree about which they accept:
+#: current LM Studio builds reject ``json_object`` outright ("'response_format.type' must
+#: be 'json_schema' or 'text'"), while older/other OpenAI-compatible servers predate
+#: ``json_schema``. A rejected format returns HTTP 400, which is NOT retryable, so without
+#: this ladder a single unsupported format silently zeroed out every extraction. ``text``
+#: is the universal floor — ``_parse_llm_json`` already tolerates unconstrained output.
+_RESPONSE_FORMAT_MODES = ("json_schema", "json_object", "text")
 
 
 class MetadataExtractor:
@@ -137,6 +191,11 @@ class MetadataExtractor:
             api_key="local",
             http_client=self._http_client,
         )
+
+        # Index into _RESPONSE_FORMAT_MODES. Starts at the strictest mode and degrades
+        # permanently for this extractor's lifetime the first time the server rejects one,
+        # so the negotiation cost is paid once rather than on every page sample.
+        self._response_format_index = 0
 
         # Best-effort connectivity probe: fires a background task so it never
         # blocks or fails startup.  Only schedules when there is a running
@@ -350,6 +409,54 @@ class MetadataExtractor:
 
         return {}
 
+    @staticmethod
+    def _response_format_for(mode: str) -> dict[str, Any]:
+        """Build the ``response_format`` payload for a mode in ``_RESPONSE_FORMAT_MODES``."""
+        if mode == "json_schema":
+            return {"type": "json_schema", "json_schema": METADATA_JSON_SCHEMA}
+        return {"type": mode}
+
+    async def _create_completion(
+        self,
+        client: Any,
+        user_content: str,
+        job_id: str | None,
+    ) -> Any:
+        """Call the chat endpoint, degrading ``response_format`` if the server rejects it.
+
+        A server that does not understand the requested format answers HTTP 400, which is
+        not a transient error and is therefore never retried by
+        ``_query_llm_with_retry`` — it would abort extraction outright. Walk down
+        ``_RESPONSE_FORMAT_MODES`` instead, remembering the working mode on the instance.
+        """
+        while True:
+            mode = _RESPONSE_FORMAT_MODES[self._response_format_index]
+            try:
+                return await client.chat.completions.create(
+                    model=self._model,
+                    messages=[
+                        {"role": "system", "content": METADATA_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    temperature=0.1,
+                    max_tokens=_MAX_COMPLETION_TOKENS,
+                    response_format=self._response_format_for(mode),
+                )
+            except openai.BadRequestError as exc:
+                if self._response_format_index >= len(_RESPONSE_FORMAT_MODES) - 1:
+                    # Already on the universal "text" floor; the 400 is about something
+                    # else (context length, bad model name) and must surface.
+                    raise
+                self._response_format_index += 1
+                logger.warning(
+                    "component=metadata_extraction job_id=%s response_format=%s rejected "
+                    "by endpoint, falling back to %s error=%s",
+                    sanitize_log_value(job_id) or "?",  # codeql[py/log-injection]
+                    mode,
+                    _RESPONSE_FORMAT_MODES[self._response_format_index],
+                    sanitize_log_value(str(exc)[:200]),
+                )
+
     async def _query_llm(
         self,
         client: Any,
@@ -371,16 +478,7 @@ class MetadataExtractor:
         call_start = time.perf_counter()
         input_chars = len(user_content)
 
-        response = await client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": METADATA_SYSTEM_PROMPT},
-                {"role": "user", "content": user_content},
-            ],
-            temperature=0.1,
-            max_tokens=_MAX_COMPLETION_TOKENS,
-            response_format={"type": "json_object"},
-        )
+        response = await self._create_completion(client, user_content, job_id)
         elapsed_ms = int((time.perf_counter() - call_start) * 1000)
 
         # Defensive check: LM Studio may return HTTP 200 with null choices
@@ -515,18 +613,41 @@ class MetadataExtractor:
             f"{text}"
         )
 
+    @staticmethod
+    def _normalize_category(value: Any) -> str:
+        """Map an LLM category to a canonical wire-value, or "" if it is off-list.
+
+        Only the ``json_schema`` response format enforces the enum in the decoder; the
+        ``json_object``/``text`` fallbacks do not, so a model is free to answer
+        "supersport" or "naked". Those values reach ``MotorcycleSearchIndexNaming``
+        verbatim and would resolve to a ``motorcycle-<junk>`` index that does not exist.
+        Blanking instead leaves the field unfilled, which drops the fill rate and routes
+        the job to manual entry — a visible pause beats a broken index name.
+        """
+        if not isinstance(value, str):
+            return ""
+        normalized = value.strip().lower()
+        return normalized if normalized in MOTORCYCLE_CATEGORIES else ""
+
     def _merge(self, best: dict[str, Any], parsed: dict[str, Any]) -> None:
         """Merge parsed fields into the running best result.
 
         Only fills empty required slots (first non-empty value wins across
         iterations). Year is coerced to int; a non-numeric year is treated as
         unfilled (0). Tags are taken from the first response that provides them.
+        Category is normalized to one of ``MOTORCYCLE_CATEGORIES``.
         """
         for field in self.REQUIRED_FIELDS:
             if field == "year":
                 continue
             if not best.get(field) and parsed.get(field):
-                best[field] = parsed[field]
+                value = (
+                    self._normalize_category(parsed[field])
+                    if field == "category"
+                    else parsed[field]
+                )
+                if value:
+                    best[field] = value
 
         if not best.get("year") and parsed.get("year"):
             best["year"] = self._coerce_year(parsed["year"])

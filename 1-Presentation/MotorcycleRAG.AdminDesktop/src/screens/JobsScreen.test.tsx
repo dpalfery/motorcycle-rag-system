@@ -500,6 +500,57 @@ describe("JobsScreen — source file name subtitle", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("surfaces the reason when a retry is rejected and restores the failed badge", async () => {
+    // Regression: the retry mutation had no onError. A rejected retry left only the
+    // optimistic "queued" flash before onSettled refetched the still-failed job —
+    // the reported "the page just blinks" with no explanation.
+    const failedJob = makeJob({ id: 34, jobId: "job-34", status: "Failed" });
+    configureApiJobs([failedJob]);
+    apiPost.mockRejectedValue(
+      Object.assign(new Error("Request failed with status code 409"), {
+        isAxiosError: true,
+        response: {
+          status: 409,
+          data: {
+            title: "Job retry rejected",
+            detail:
+              "The source file for this ingestion job ('upload-34/source.pdf') was not found in blob storage.",
+          },
+        },
+      }),
+    );
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "was not found in blob storage",
+    );
+    // The badge must not be left on a "queued" state the server never accepted.
+    await waitFor(() => expect(screen.getByText("Failed")).toBeInTheDocument());
+    expect(screen.queryByText("queued")).not.toBeInTheDocument();
+  });
+
+  it("clears a previous retry error once a retry succeeds", async () => {
+    const failedJob = makeJob({ id: 35, jobId: "job-35", status: "Failed" });
+    configureApiJobs([failedJob]);
+    apiPost.mockRejectedValueOnce(
+      Object.assign(new Error("boom"), {
+        isAxiosError: true,
+        response: { status: 409, data: { detail: "cannot retry right now" } },
+      }),
+    );
+    renderScreen();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("cannot retry right now");
+
+    apiPost.mockResolvedValue({ data: { ...failedJob, status: "queued" } });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
   it("renders an unknown status and an older creation time without metadata", async () => {
     configureApiJobs([
       makeJob({

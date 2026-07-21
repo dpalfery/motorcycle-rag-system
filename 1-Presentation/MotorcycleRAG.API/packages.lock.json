@@ -338,8 +338,8 @@
       },
       "Microsoft.Extensions.Caching.StackExchangeRedis": {
         "type": "Transitive",
-        "resolved": "10.0.7",
-        "contentHash": "TvD0totA8qeyrZ2YeY/qRNgYBy4BvO6dG59ziJDLVnLH4s2jeLUFEFcgA3xzqPhCMMbuz9bJTRwHxkZ/7c87jQ==",
+        "resolved": "10.0.10",
+        "contentHash": "E+3pfEY68WQh1ZVFTGDNK0JCoayzL3aIDgVHHM85HIbQO7MiABG14A7+ajHH2P/y3a4W2Rla5p2nzut3+mzoyQ==",
         "dependencies": {
           "StackExchange.Redis": "2.7.27"
         }
@@ -675,7 +675,7 @@
         "type": "Project",
         "dependencies": {
           "Azure.Core": "[1.49.0, )",
-          "Microsoft.Extensions.Caching.StackExchangeRedis": "[10.0.7, )",
+          "Microsoft.Extensions.Caching.StackExchangeRedis": "[10.0.10, )",
           "MotorcycleRAG.Contracts": "[1.0.0, )",
           "MotorcycleRAG.Contracts.Models": "[1.0.0, )",
           "MotorcycleRAG.Core": "[1.0.0, )",

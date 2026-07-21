@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Application.Services;
 
@@ -71,7 +72,7 @@ public class AuditService : IAuditService {
         _logger.LogInformation(
             "User authentication successful. UserId: {SanitizedUserId}, Email: {Email}, CorrelationId: {CorrelationId}",
             sanitizedUserId,
-            MaskEmailForLog(email),
+            PiiMasking.MaskEmailForLog(email),
             correlationId);
 
         return createdLog;
@@ -111,22 +112,6 @@ public class AuditService : IAuditService {
         return createdLog;
     }
 
-    private static string MaskEmailForLog(string? email)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-            return string.Empty;
-
-        var atIndex = email.IndexOf('@');
-        if (atIndex <= 0 || atIndex == email.Length - 1)
-            return "[redacted]";
-
-        var localFirstChar = email[0];
-        var domain = email[(atIndex + 1)..];
-        var masked = $"{localFirstChar}***@{domain}";
-
-        return masked;
-    }
-
     /// <summary>
     /// Logs a failed authentication attempt.
     /// OWASP ASVS 2.1.2: Failed authentication attempts are logged
@@ -140,7 +125,6 @@ public class AuditService : IAuditService {
             throw new ArgumentException("Reason cannot be empty", nameof(reason));
 
         var correlationId = _correlationService.GetOrGenerateCorrelationId();
-        var sanitizedEmail = email;
 
         var auditLog = new AuditLog {
             UserEmail = email, // Store original for audit trail
@@ -157,10 +141,12 @@ public class AuditService : IAuditService {
 
         var createdLog = await _auditRepository.CreateAuditLogAsync(auditLog);
 
-        // Log at warning level for failed authentication attempts
+        // Log at warning level for failed authentication attempts. The address is masked
+        // here only; the audit record above intentionally keeps the full address as the
+        // durable audit trail.
         _logger.LogWarning(
             "Authentication failure. Email: {Email}, Reason: {Reason}, IpAddress: {IpAddress}, CorrelationId: {CorrelationId}",
-            sanitizedEmail,
+            LogSanitizer.Sanitize(PiiMasking.MaskEmailForLog(email)),
             reason,
             ipAddress ?? "unknown",
             correlationId);

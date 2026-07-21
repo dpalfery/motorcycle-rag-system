@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 
 namespace MotorcycleRAG.Persistence.Azure;
 
@@ -64,7 +65,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
                 "Found existing external identity {ExternalDirectoryObjectId} for {Provider}/{Email}; reconciling tier {Tier}",
                 existingExternalDirectoryObjectId,
                 provider,
-                normalizedEmail,
+                PiiMasking.MaskEmailForLog(normalizedEmail),
                 tier);
 
             await ReconcileTierAssignmentsInternalAsync(existingExternalDirectoryObjectId, tier, CancellationToken.None);
@@ -85,7 +86,7 @@ public class ExternalIdentityProvisioningService : IExternalIdentityProvisioning
             "Provisioned external identity {ExternalDirectoryObjectId} for {Provider}/{Email} with tier {Tier}",
             externalDirectoryObjectId,
             provider,
-            normalizedEmail,
+            PiiMasking.MaskEmailForLog(normalizedEmail),
             tier);
 
         await ReconcileTierAssignmentsInternalAsync(externalDirectoryObjectId, tier, CancellationToken.None);

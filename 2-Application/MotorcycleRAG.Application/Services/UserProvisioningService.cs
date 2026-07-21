@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Core.Utilities;
 
 
 namespace MotorcycleRAG.Application.Services {
@@ -76,7 +77,7 @@ namespace MotorcycleRAG.Application.Services {
                 objectId: null);
 
             if (reconciledUser == null) {
-                _logger.LogWarning("Rejected sign-in for unapproved user {Email}", email);
+                _logger.LogWarning("Rejected sign-in for unapproved user {Email}", PiiMasking.MaskEmailForLog(email));
                 throw new InvalidOperationException("User must be approved before sign-in is allowed.");
             }
 
@@ -111,7 +112,7 @@ namespace MotorcycleRAG.Application.Services {
                 _logger.LogInformation(
                     "No approved managed user found for provider-authenticated sign-in {Provider}/{Email}",
                     provider,
-                    email);
+                    PiiMasking.MaskEmailForLog(email));
                 return null;
             }
 
@@ -248,7 +249,7 @@ namespace MotorcycleRAG.Application.Services {
             if (!MatchesProvider(existingUser.AuthProvider, provider)) {
                 _logger.LogWarning(
                     "Blocked sign-in for {Email} because the authenticated provider {Provider} does not match the approved provider {ApprovedProvider}",
-                    email,
+                    PiiMasking.MaskEmailForLog(email),
                     provider,
                     existingUser.AuthProvider);
                 return null;

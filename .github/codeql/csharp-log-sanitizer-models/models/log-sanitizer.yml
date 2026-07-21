@@ -10,3 +10,17 @@ extensions:
       # MotorcycleRAG.Core.Utilities.LogSanitizer.Sanitize(object?, int?) overload — delegates
       # to the string overload above after ToString(), so its return value is equally clean.
       - ["MotorcycleRAG.Core.Utilities", "LogSanitizer", false, "Sanitize", "(System.Object,System.Nullable<System.Int32>)", "", "ReturnValue", "log-injection", "manual"]
+      # MotorcycleRAG.Core.Utilities.PiiMasking.MaskEmailForLog(string?) — return value is
+      # clean for cs/exposure-of-sensitive-information ("file-content-store" is the only
+      # barrier kind that query's sanitizer accepts). The helper keeps just the first
+      # local-part character plus the domain ("j***@example.com"), so what it returns is no
+      # longer the private datum that entered it. That query treats *any* access to a
+      # variable whose name matches "%email%" as a fresh source, so a masking helper cannot
+      # be recognised from application code alone — it has to be declared here.
+      # Keep in sync with 0-Base/MotorcycleRAG.Core/Utilities/PiiMasking.cs: if the helper is
+      # renamed, moved, or stops redacting, update or remove this entry rather than leaving
+      # a barrier that no longer masks.
+      - ["MotorcycleRAG.Core.Utilities", "PiiMasking", false, "MaskEmailForLog", "(System.String)", "", "ReturnValue", "file-content-store", "manual"]
+      # Same helpers again for the exposure query, which does not share the log-injection kind.
+      - ["MotorcycleRAG.Core.Utilities", "LogSanitizer", false, "Sanitize", "(System.String,System.Nullable<System.Int32>)", "", "ReturnValue", "file-content-store", "manual"]
+      - ["MotorcycleRAG.Core.Utilities", "LogSanitizer", false, "Sanitize", "(System.Object,System.Nullable<System.Int32>)", "", "ReturnValue", "file-content-store", "manual"]

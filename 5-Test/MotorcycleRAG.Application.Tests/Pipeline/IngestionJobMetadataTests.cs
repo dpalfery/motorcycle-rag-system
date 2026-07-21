@@ -354,6 +354,139 @@ public sealed class IngestionJobMetadataTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task TransitionStageAsync_NeedsManualMetadataWithFailureReason_StillPausesInsteadOfFailing()
+    {
+        // Regression: the local processor ALWAYS sends a failure reason with this stage
+        // ("Metadata extraction incomplete after N pages ... Manual entry required."). That
+        // used to satisfy ShouldTreatLocalProcessorFailureAsTerminal on a local-compute job,
+        // routing the pause to the terminal Failed branch — so RequiresManualMetadata came
+        // back false and the admin UI never rendered the manual-entry modal.
+        var jobId = Guid.NewGuid();
+        var job = CreateJob(jobId, IngestionJobStatus.Processing, currentStage: "extracting-metadata");
+
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        var request = new IngestionJobStageRequest
+        {
+            Stage = "needs-manual-metadata",
+            FailureReason = "Metadata extraction incomplete after 0 pages (fill rate 0%). Manual entry required."
+        };
+
+        var result = await CreateSut().TransitionStageAsync(jobId, request);
+
+        result.Status.Should().Be("AwaitingMetadata");
+        result.CurrentStage.Should().Be("needs-manual-metadata");
+        result.RequiresManualMetadata.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TransitionStageAsync_NeedsManualMetadataWithPartialMetadata_PersistsItForPreFill()
+    {
+        var jobId = Guid.NewGuid();
+        var job = CreateJob(jobId, IngestionJobStatus.Processing, currentStage: "extracting-metadata");
+        const string partial = """{"make":"Yamaha","model":"YZF-R6S","year":null,"category":null,"tags":[]}""";
+
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        var request = new IngestionJobStageRequest
+        {
+            Stage = "needs-manual-metadata",
+            FailureReason = "Metadata extraction incomplete after 3 pages (fill rate 50%). Manual entry required.",
+            MetadataJson = partial
+        };
+
+        var result = await CreateSut().TransitionStageAsync(jobId, request);
+
+        result.Status.Should().Be("AwaitingMetadata");
+        _repository.Verify(
+            r => r.UpdateMetadataAsync(jobId, partial, It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task TransitionStageAsync_NeedsManualMetadataWithUnparseableMetadata_StillPauses()
+    {
+        var jobId = Guid.NewGuid();
+        var job = CreateJob(jobId, IngestionJobStatus.Processing, currentStage: "extracting-metadata");
+
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        var request = new IngestionJobStageRequest
+        {
+            Stage = "needs-manual-metadata",
+            FailureReason = "Manual entry required.",
+            MetadataJson = "not json at all"
+        };
+
+        var result = await CreateSut().TransitionStageAsync(jobId, request);
+
+        result.Status.Should().Be("AwaitingMetadata");
+        _repository.Verify(
+            r => r.UpdateMetadataAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task TransitionStageAsync_NeedsManualMetadataWhenMetadataWriteFails_StillPauses()
+    {
+        // The pause transition is committed before the metadata write. A failure persisting the
+        // pre-fill blob must not propagate — losing the pre-fill is strictly better than losing
+        // the pause and stranding the job.
+        var jobId = Guid.NewGuid();
+        var job = CreateJob(jobId, IngestionJobStatus.Processing, currentStage: "extracting-metadata");
+
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+        _repository
+            .Setup(r => r.UpdateMetadataAsync(jobId, It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("metadata column write failed"));
+
+        var request = new IngestionJobStageRequest
+        {
+            Stage = "needs-manual-metadata",
+            FailureReason = "Manual entry required.",
+            MetadataJson = """{"make":"Yamaha","model":"YZF-R6S","year":null,"category":null,"tags":[]}"""
+        };
+
+        var result = await CreateSut().TransitionStageAsync(jobId, request);
+
+        result.Status.Should().Be("AwaitingMetadata");
+        result.RequiresManualMetadata.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task TransitionStageAsync_NeedsManualMetadataWithOversizedMetadata_SkipsPersistence()
+    {
+        var jobId = Guid.NewGuid();
+        var job = CreateJob(jobId, IngestionJobStatus.Processing, currentStage: "extracting-metadata");
+
+        _repository
+            .Setup(r => r.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        var request = new IngestionJobStageRequest
+        {
+            Stage = "needs-manual-metadata",
+            FailureReason = "Manual entry required.",
+            MetadataJson = $$"""{"make":"{{new string('x', 10_001)}}"}"""
+        };
+
+        var result = await CreateSut().TransitionStageAsync(jobId, request);
+
+        result.Status.Should().Be("AwaitingMetadata");
+        _repository.Verify(
+            r => r.UpdateMetadataAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
     // === Helpers ===
 
     private IngestionJobService CreateSut()

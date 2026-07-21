@@ -364,7 +364,27 @@ class PDFProcessor:
                 sanitize_log_value(str(exc)),
             )
 
-    async def _report_paused(self, job_id: str, failure_reason: str) -> None:
+    @staticmethod
+    def _partial_metadata_json(extracted: dict[str, Any]) -> str | None:
+        """Serialize the schema fields of a partial extraction for the admin pre-fill form.
+
+        Only the five contract fields are sent — ``fill_rate``/``pages_sampled`` are
+        processor bookkeeping and would surface as noise in the manual-entry textarea.
+        Returns ``None`` when nothing was determined, so an empty blob is not persisted.
+        """
+        fields = {
+            key: extracted.get(key)
+            for key in ("make", "model", "year", "category", "tags")
+        }
+        if not any(fields[key] for key in ("make", "model", "category")) and not fields.get(
+            "year"
+        ):
+            return None
+        return json.dumps(fields)
+
+    async def _report_paused(
+        self, job_id: str, failure_reason: str, extracted: dict[str, Any] | None = None
+    ) -> None:
         """Report the needs-manual-metadata pause to the API (never raises)."""
         if not self._api_client.is_configured():
             return
@@ -376,6 +396,9 @@ class PDFProcessor:
                 chunks_processed=job.get("chunks_processed", 0),
                 total_chunks=job.get("total_chunks", 0),
                 failure_reason=failure_reason,
+                metadata_json=(
+                    self._partial_metadata_json(extracted) if extracted else None
+                ),
             )
         except TypeError:
             pass
@@ -622,7 +645,9 @@ class PDFProcessor:
                     self._mark_paused_for_metadata(
                         job_id, metadata_result, failure_reason
                     )
-                    await self._report_paused(job_id, failure_reason)
+                    await self._report_paused(
+                        job_id, failure_reason, extracted=metadata_result
+                    )
                     logger.info(
                         "component=pdf_processor job_id=%s fill_rate=%.2f pages_sampled=%d message=paused for manual metadata",
                         sanitize_log_value(job_id),  # codeql[py/log-injection]

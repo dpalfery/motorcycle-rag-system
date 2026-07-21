@@ -1,3 +1,15 @@
+---
+id: devops/developer-setup-windows
+title: Windows Setup
+doc-type: reference
+status: current
+owner: Developer-experience maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Windows Setup
 
 Part of the [Developer Machine Setup Standard](developer-setup-standard.md).

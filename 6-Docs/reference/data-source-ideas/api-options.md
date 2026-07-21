@@ -1,3 +1,15 @@
+---
+id: reference/data-source-api-options
+title: reference/data-source-api-options
+doc-type: reference
+status: current
+owner: Ingestion maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 Excellent! You're looking for motorcycle-specific APIs, which are quite different from bicycle-sharing APIs. Here's a comprehensive guide to available motorcycle-related APIs and resources:
 
 ## **Motorcycle-Specific APIs & Resources**

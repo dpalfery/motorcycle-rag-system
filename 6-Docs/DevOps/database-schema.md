@@ -1,3 +1,15 @@
+---
+id: devops/database-schema
+title: Database Schema Deployment
+doc-type: reference
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Database Schema Deployment
 
 This document describes the MotorcycleRAG project's database schema deployment strategy, the canonical schema file, idempotency patterns, deployment paths, known limitations, and the planned future direction.
@@ -192,7 +204,7 @@ When adding or modifying database objects, follow this checklist:
 
 > ⚠️ **Not yet implemented.** This section describes an intended future direction, not current guidance.
 
-The domain-entity setter-encapsulation plan ([`2026-07-16-domain-entity-setter-encapsulation-and-inventory-gate.md`](../plans/2026-07-16-domain-entity-setter-encapsulation-and-inventory-gate.md), Task 4) calls for introducing **FluentMigrator** for a targeted schema migration on the `[dbo].[IngestionJobs]` table — backfilling `[CreatedAtUtc]`, dropping legacy columns, and simplifying ordering expressions. The migration must be reversible (include a `Down` migration).
+The domain-entity setter-encapsulation plan ([`2026-07-16-domain-entity-setter-encapsulation-and-inventory-gate.md`](../archive/plans/2026-07-16-domain-entity-setter-encapsulation-and-inventory-gate.md), Task 4) calls for introducing **FluentMigrator** for a targeted schema migration on the `[dbo].[IngestionJobs]` table — backfilling `[CreatedAtUtc]`, dropping legacy columns, and simplifying ordering expressions. The migration must be reversible (include a `Down` migration).
 
 When FluentMigrator is adopted:
 - The `dal-dev` agent owns FluentMigrator migration scripts (per its agent definition).

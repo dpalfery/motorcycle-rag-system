@@ -1,3 +1,15 @@
+---
+id: system/review-guidelines
+title: Review instructions
+doc-type: governance
+status: current
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Review instructions
 
 Moved to [`/REVIEW.md`](../REVIEW.md) at the repository root.

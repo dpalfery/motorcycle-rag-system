@@ -1,3 +1,16 @@
+---
+id: local-processor/requirements
+title: Local Processing Service Requirements
+doc-type: requirements
+status: current
+component: Local Processing Service
+owner: Ingestion maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Local Processing Service Requirements
 
 ## Introduction

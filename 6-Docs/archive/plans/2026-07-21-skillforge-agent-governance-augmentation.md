@@ -1,5 +1,8 @@
 # 2026-07-21 SkillForge Upstream Augmentation Plan: Multi-Harness Agent & Skill Governance
 
+**Status:** Archived  
+**Date:** 2026-07-21  
+
 ## Goal
 
 Augment the core **SkillForge** toolkit ([7-Deployment/tools/SkillForge/](file:///Users/dave/git/motorcycle-rag-system/7-Deployment/tools/SkillForge)) with **Agent Harness Governance** capabilities. This enables SkillForge to parse, validate, lint, security-scan, and routing-test both **Agent Skills** (`SKILL.md`) and **Agent Definitions** across diverse AI coding harnesses (`.codex/`, `.cursor/`, `.claude/`, `.github/`, `.opencode/`, `.kilo/`).

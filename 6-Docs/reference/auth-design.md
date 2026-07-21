@@ -1,3 +1,15 @@
+---
+id: reference/auth-design
+title: 📘 DOCUMENT 1
+doc-type: reference
+status: current
+owner: Architecture maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # 📘 DOCUMENT 1  
 # Authentication & Authorization Design  
 **MotorcycleRAG – Azure / Entra ID**

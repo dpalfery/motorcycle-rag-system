@@ -1,3 +1,17 @@
+---
+id: webui/onboarding
+title: MotorcycleRAG Web UI Developer Onboarding
+doc-type: onboarding
+status: current
+component: MotorcycleRAG Web UI
+source-root: 1-Presentation/MotorcycleRag.WebUI
+owner: Web UI maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Web UI Developer Onboarding
 
 ## Prerequisites

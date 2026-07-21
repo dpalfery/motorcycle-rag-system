@@ -1,6 +1,25 @@
+---
+id: operations/webui-bff-data-protection-operations
+title: Data Protection Key Persistence — Operations Guide
+doc-type: runbook
+status: current
+component: MotorcycleRAG Web UI BFF
+source-root: 1-Presentation/MotorcycleRag.WebUI.BFF
+owner: Web UI maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - DataProtectionHealthCheck
+  - IDataProtectionBlobProbe
+  - AzureBlobDataProtectionProbe
+  - DataProtectionMonitoringService
+  - AddDataProtectionMonitoring
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
+
 # Data Protection Key Persistence — Operations Guide
 
-**Component:** `MotorcycleRag.WebUI.BFF`  
 **Audience:** DevOps Engineers, SREs  
 **Review Cadence:** Quarterly, or after any storage account change
 
@@ -29,6 +48,7 @@ The Data Protection system protects session cookies for the BFF service. Operati
 3. **Performance** — Is key persistence adding unacceptable latency?
 
 The primary monitoring surface is:
+
 - The `/health` endpoint for availability
 - Application Insights metrics and custom events for integrity and performance
 - Azure Monitor alerts for automated notification
@@ -39,19 +59,19 @@ The primary monitoring surface is:
 
 ### Endpoint
 
-```
+```http
 GET https://<bff-hostname>/health
 ```
 
-The health response includes a `data_protection_blob` entry populated by [`DataProtectionHealthCheck`](../../1-Presentation/MotorcycleRag.WebUI.BFF/HealthChecks/DataProtectionHealthCheck.cs:12).
+The health response includes a `data_protection_blob` entry populated by [`DataProtectionHealthCheck`](../../1-Presentation/MotorcycleRag.WebUI.BFF/HealthChecks/DataProtectionHealthCheck.cs).
 
 ### Interpreting Results
 
 | `data_protection_blob` Status | Meaning | Action |
-|---|---|---|
+| --- | --- | --- |
 | `Healthy` | Blob storage is accessible. Keys are persisted correctly. | None |
 | `Degraded` | `DataProtection:BlobUri` is not configured. Ephemeral keys in use. Sessions will not survive restarts. | Configure `DataProtection:BlobUri` immediately in non-Development environments. |
-| `Unhealthy` | Unexpected error connecting to blob storage. | See [Troubleshooting Guide](data-protection-troubleshooting.md) |
+| `Unhealthy` | Unexpected error connecting to blob storage. | See [Troubleshooting Guide](webui-bff-data-protection-troubleshooting.md) |
 
 ### Reading Health in Azure Container Apps
 
@@ -73,7 +93,7 @@ Azure Container Apps polls `/health` as a liveness and readiness probe. Configur
 
 ## Application Insights Metrics
 
-The [`DataProtectionMonitoringService`](../../1-Presentation/MotorcycleRag.WebUI.BFF/Extensions/DataProtectionMonitoringExtensions.cs:11) emits these metrics to Application Insights.
+The [`DataProtectionMonitoringService`](../../1-Presentation/MotorcycleRag.WebUI.BFF/Extensions/DataProtectionMonitoringExtensions.cs) emits these metrics to Application Insights.
 
 ### Metric: `DataProtection.KeyPersistence.Success`
 
@@ -178,7 +198,7 @@ customEvents
 ### Structured Log Entries
 
 | Log Level | Message Pattern | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `Information` | `Data Protection keys persisted to Azure Blob Storage: {BlobUri}` | Startup: keys configured correctly |
 | `Warning` | `Data Protection is using ephemeral keys - sessions will NOT survive container restarts` | BlobUri not configured |
 | `Debug` | `Data Protection blob storage is accessible: {BlobUri}` | Health check passed |
@@ -215,7 +235,7 @@ Configure these alerts in Azure Monitor on the Application Insights resource.
 ### Alert 1: Key Persistence Failure
 
 | Property | Value |
-|---|---|
+| --- | --- |
 | **Alert name** | `DP-KeyPersistenceFailure` |
 | **Severity** | P1 — Critical |
 | **Signal type** | Custom metric |
@@ -228,7 +248,7 @@ Configure these alerts in Azure Monitor on the Application Insights resource.
 ### Alert 2: Health Check Degraded
 
 | Property | Value |
-|---|---|
+| --- | --- |
 | **Alert name** | `DP-HealthDegraded` |
 | **Severity** | P2 — High |
 | **Signal type** | Log search |
@@ -239,7 +259,7 @@ Configure these alerts in Azure Monitor on the Application Insights resource.
 ### Alert 3: IDX21329 Errors Detected
 
 | Property | Value |
-|---|---|
+| --- | --- |
 | **Alert name** | `DP-IDX21329Errors` |
 | **Severity** | P1 — Critical |
 | **Signal type** | Log search |
@@ -252,7 +272,7 @@ Configure these alerts in Azure Monitor on the Application Insights resource.
 ### Alert 4: Slow Key Persistence
 
 | Property | Value |
-|---|---|
+| --- | --- |
 | **Alert name** | `DP-SlowKeyPersistence` |
 | **Severity** | P3 — Warning |
 | **Signal type** | Custom metric |
@@ -269,7 +289,7 @@ Configure these alerts in Azure Monitor on the Application Insights resource.
 ASP.NET Core Data Protection manages key lifecycle automatically. Understanding the defaults helps operators anticipate rotation events.
 
 | Event | Default Timing |
-|---|---|
+| --- | --- |
 | New key generation | 14 days before current key expires |
 | Key active period | 90 days from creation |
 | Key retained (for decryption) | 14 days after expiry |
@@ -299,9 +319,11 @@ az storage blob download \
 After every deployment to a non-Development environment:
 
 1. Check the health endpoint:
+
    ```bash
    curl https://<bff-hostname>/health | python -m json.tool
    ```
+
 2. Confirm `data_protection_blob` status is `Healthy`.
 3. Check Application Insights for `DataProtection.KeysInitialized` event within the last 5 minutes.
 
@@ -321,6 +343,6 @@ After every deployment to a non-Development environment:
 
 ## Related Documentation
 
-- [Architecture Guide](data-protection-architecture.md)
-- [Troubleshooting Guide](data-protection-troubleshooting.md)
-- [Disaster Recovery Guide](data-protection-disaster-recovery.md)
+- [Architecture Guide](../MotorcycleRag.WebUI.BFF/data-protection.md)
+- [Troubleshooting Guide](webui-bff-data-protection-troubleshooting.md)
+- [Disaster Recovery Guide](webui-bff-data-protection-disaster-recovery.md)

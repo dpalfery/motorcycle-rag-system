@@ -1,3 +1,16 @@
+---
+id: specs/admin-desktop-bootstrap-tasks
+title: specs/admin-desktop-bootstrap-tasks
+doc-type: spec
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
  # Implementation Plan
  
  - [x] 1. Finalize processor bootstrap configuration contracts and safe defaults in the Admin Desktop host

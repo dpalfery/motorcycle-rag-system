@@ -1,3 +1,16 @@
+---
+id: admin-desktop/ui-conventions
+title: Admin Desktop — UI / Design Conventions
+doc-type: reference
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Admin Desktop — UI / Design Conventions
 
 ## Theme Tokens

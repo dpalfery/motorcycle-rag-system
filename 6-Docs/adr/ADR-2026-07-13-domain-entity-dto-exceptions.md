@@ -1,3 +1,15 @@
+---
+id: adr/2026-07-13-domain-entity-dto-exceptions
+title: "ADR-2026-07-13: Domain Entity and DTO classification exceptions"
+doc-type: adr
+status: current
+owner: Architecture maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # ADR-2026-07-13: Domain Entity and DTO classification exceptions
 
 **Status:** Accepted  

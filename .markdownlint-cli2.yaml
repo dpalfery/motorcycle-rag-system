@@ -3,6 +3,11 @@ config:
   MD024: false
   MD033: false
   MD041: false
+  # Ontology frontmatter carries a `title:` key as graph metadata, not as the
+  # document's heading. Without this, MD025 counts that key as the first H1 and
+  # reports every document's real `#` heading as a duplicate.
+  MD025:
+    front_matter_title: ""
 globs:
   - "README.md"
   - "AGENTS.md"
@@ -15,16 +20,20 @@ globs:
   - "1-Presentation/MotorcycleRAG.AdminDesktop/README.md"
   - "1-Presentation/MotorcycleRAG.MobileApp/README.md"
   - "1-Presentation/MotorcycleRag.WebUI/README.md"
+  - "1-Presentation/MotorcycleRag.WebUI.BFF/README.md"
   - "2-Application/local-processing-service/README.md"
   - "7-Deployment/README.md"
   - "6-Docs/README.md"
   - "6-Docs/catalog.md"
   - "6-Docs/documentation-standard.md"
+  - "6-Docs/documentation-ontology.md"
   - "6-Docs/system/**/*.md"
   - "6-Docs/MotorcycleRAG.API/**/*.md"
   - "6-Docs/MotorcycleRAG.AdminDesktop/**/*.md"
   - "6-Docs/MotorcycleRAG.MobileApp/**/*.md"
   - "6-Docs/MotorcycleRag.WebUI/**/*.md"
+  - "6-Docs/MotorcycleRag.WebUI.BFF/**/*.md"
+  - "6-Docs/operations/**/*.md"
   - "6-Docs/local-processing-service/**/*.md"
   - "6-Docs/AzureEnvironment/**/*.md"
   - "6-Docs/DevOps/README.md"

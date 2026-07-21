@@ -1,3 +1,17 @@
+---
+id: local-processor/onboarding
+title: Local Processing Service Developer Onboarding
+doc-type: onboarding
+status: current
+component: Local Processing Service
+source-root: 2-Application/local-processing-service
+owner: Ingestion maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Local Processing Service Developer Onboarding
 
 ## Prerequisites

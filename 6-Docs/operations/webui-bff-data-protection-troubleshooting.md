@@ -1,6 +1,24 @@
+---
+id: operations/webui-bff-data-protection-troubleshooting
+title: Data Protection — Troubleshooting Runbook
+doc-type: runbook
+status: current
+component: MotorcycleRAG Web UI BFF
+source-root: 1-Presentation/MotorcycleRag.WebUI.BFF
+owner: Web UI maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - DataProtectionServiceConfiguration
+  - AddBffDataProtection
+  - DataProtectionHealthCheck
+  - IDataProtectionBlobProbe
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
+
 # Data Protection — Troubleshooting Runbook
 
-**Component:** `MotorcycleRag.WebUI.BFF`  
 **Audience:** DevOps Engineers, SREs  
 **Severity:** P0 — Session invalidation affects all authenticated users
 
@@ -22,7 +40,7 @@
 
 **Error message:**
 
-```
+```text
 IDX21329: Unable to validate token. Decryption failed. Keys tried: <key-id>.
 ```
 
@@ -47,6 +65,7 @@ This is **not a JWT token validation error** in the traditional sense — it is 
 **What happens:** `DataProtection:BlobUri` is not configured. Each container instance generates its own in-memory key ring. When the container restarts or a new replica starts, the key ring is lost.
 
 **Indicators:**
+
 - Health check returns `Degraded` with message: `DataProtection:BlobUri is not configured - using ephemeral keys`
 - Log entry: `Data Protection is using ephemeral keys - sessions will NOT survive container restarts`
 
@@ -55,6 +74,7 @@ This is **not a JWT token validation error** in the traditional sense — it is 
 **What happens:** `DataProtection:BlobUri` is configured, but the container's Managed Identity lacks the **Storage Blob Data Contributor** role. Keys cannot be persisted or read from blob storage. The application falls back to ephemeral keys.
 
 **Indicators:**
+
 - Health check returns `Degraded` or `Unhealthy` with an Azure `RequestFailedException`
 - Log entry: `Failed to access Data Protection blob storage`
 - Azure Storage error code: `AuthorizationPermissionMismatch` or `403 Forbidden`
@@ -64,6 +84,7 @@ This is **not a JWT token validation error** in the traditional sense — it is 
 **What happens:** `DataProtection:BlobUri` is set to a malformed or incorrect URI. The blob cannot be located.
 
 **Indicators:**
+
 - Startup exception (if the URI is clearly invalid)
 - Health check returns `Unhealthy`
 - Azure Storage error code: `BlobNotFound`, `ContainerNotFound`, or `InvalidUri`
@@ -73,6 +94,7 @@ This is **not a JWT token validation error** in the traditional sense — it is 
 **What happens:** The Azure Storage account has firewall rules or private endpoint policies that block access from the container app's subnet.
 
 **Indicators:**
+
 - Health check returns `Unhealthy` with a network timeout or `403 Forbidden`
 - Azure Storage error code: `AuthorizationFailure` or network timeout
 
@@ -81,6 +103,7 @@ This is **not a JWT token validation error** in the traditional sense — it is 
 **What happens:** All active keys in the key ring have passed their expiry date (default: 90 days) and no new keys were generated (possibly due to blob access issues during rotation).
 
 **Indicators:**
+
 - Error occurs gradually for users with older sessions
 - Newer sessions work; older sessions fail
 
@@ -89,7 +112,7 @@ This is **not a JWT token validation error** in the traditional sense — it is 
 ## Symptoms
 
 | Symptom | Likely Cause |
-|---|---|
+| --- | --- |
 | All users logged out after deployment | Ephemeral keys — new container without BlobUri |
 | Users logged out intermittently during scale events | Ephemeral keys — multiple replicas with different key rings |
 | `/health` returns `Degraded` | BlobUri not configured |
@@ -158,7 +181,7 @@ az containerapp logs show \
 **Look for:**
 
 | Log Entry | Meaning |
-|---|---|
+| --- | --- |
 | `Data Protection keys persisted to Azure Blob Storage: ...` | Keys configured correctly |
 | `Data Protection is using ephemeral keys` | BlobUri not configured |
 | `Failed to access Data Protection blob storage` | RBAC or network issue |
@@ -174,7 +197,7 @@ az appconfig kv show \
 
 Verify the URI format:
 
-```
+```text
 https://<storage-account>.blob.core.windows.net/<container>/keys.xml
 ```
 
@@ -251,7 +274,7 @@ az appconfig kv show \
 
 The correct URI format is:
 
-```
+```text
 https://<storage-account-name>.blob.core.windows.net/<container-name>/keys.xml
 ```
 
@@ -265,7 +288,7 @@ After the pipeline deploys, restart the container app revision to pick up the ne
 
 Raise this with the team lead to grant the role via IaC:
 
-```
+```text
 Role:  Storage Blob Data Contributor
 Scope: /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<account>/blobServices/default/containers/<container>
 Principal: <managed-identity-object-id>
@@ -275,10 +298,12 @@ Principal: <managed-identity-object-id>
 
 1. Identify the current (incorrect) URI using Step 3 above.
 2. Construct the correct URI:
-   ```
+
+```text
    https://<account>.blob.core.windows.net/<container>/keys.xml
    ```
-3. Update via IaC and deploy.
+
+1. Update via IaC and deploy.
 
 ### Fix 4: Unblock Storage Account Network Access
 
@@ -298,7 +323,7 @@ Raise a change request to add the container app's outbound IP range or virtual n
 
 ### Fix 5: Recover from Expired Keys
 
-If all keys have expired, you must regenerate the key ring. See the [Disaster Recovery Guide](data-protection-disaster-recovery.md#recovering-from-corrupted-or-expired-keys).
+If all keys have expired, you must regenerate the key ring. See the [Disaster Recovery Guide](webui-bff-data-protection-disaster-recovery.md#recovering-from-corrupted-or-expired-keys).
 
 ---
 
@@ -337,7 +362,7 @@ az containerapp logs show \
 
 Expected:
 
-```
+```text
 Data Protection keys persisted to Azure Blob Storage: https://...
 ```
 
@@ -357,16 +382,16 @@ exceptions
 ## Escalation Path
 
 | Situation | Action |
-|---|---|
+| --- | --- |
 | BlobUri is configured but health check still fails | Escalate to team lead; likely a network or RBAC issue requiring Azure portal access |
 | IDX21329 continues after fix applied | Check if old container revisions are still running; force a new revision |
-| Keys.xml blob is corrupt | Follow [Disaster Recovery Guide](data-protection-disaster-recovery.md) |
+| Keys.xml blob is corrupt | Follow [Disaster Recovery Guide](webui-bff-data-protection-disaster-recovery.md) |
 | Storage account is unavailable | Engage Azure Support; consider DR procedure |
 
 ---
 
 ## Related Documentation
 
-- [Architecture Guide](data-protection-architecture.md)
-- [Operations Guide](data-protection-operations.md)
-- [Disaster Recovery Guide](data-protection-disaster-recovery.md)
+- [Architecture Guide](../MotorcycleRag.WebUI.BFF/data-protection.md)
+- [Operations Guide](webui-bff-data-protection-operations.md)
+- [Disaster Recovery Guide](webui-bff-data-protection-disaster-recovery.md)

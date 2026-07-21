@@ -1,3 +1,16 @@
+---
+id: admin-desktop/requirements
+title: MotorcycleRAG Admin Desktop Requirements
+doc-type: requirements
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Admin Desktop Requirements
 
 ## Introduction

@@ -1,3 +1,18 @@
+---
+id: webui/architecture
+title: MotorcycleRAG Web UI Architecture
+doc-type: architecture
+status: current
+component: MotorcycleRAG Web UI
+source-root: 1-Presentation/MotorcycleRag.WebUI
+owner: Web UI maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - AuthProvider
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Web UI Architecture
 
 ## Overview

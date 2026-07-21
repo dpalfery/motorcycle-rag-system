@@ -21,6 +21,9 @@ Every existing linter/validator for `SKILL.md` is written in Python, JS/TS, Rust
 | `catalog` | What skills exist across my tree, with version/owner/score? | — |
 | `pack` | Bundle a skill into a Copilot Studio–compatible `.zip` | — |
 | `new` | Scaffold a spec-correct skill from a template (sop / runbook / reference / checklist) | — |
+| `agent validate` | Are coding harness agent manifests spec-conformant? | fails on **error** |
+| `agent sync-check` | Are agent roles synchronized across all 6 harness folders with no instruction drift? | fails on **error** |
+| `agent catalog` | Displays the role × harness governance parity matrix. | — |
 
 ---
 

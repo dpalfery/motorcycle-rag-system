@@ -1,3 +1,16 @@
+---
+id: specs/ingestion-job-delete-timeout-design
+title: "Design: Ingestion Job Delete Timeout Fix (SQL Basic Tier)"
+doc-type: spec
+status: current
+component: MotorcycleRAG API
+owner: API maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Design: Ingestion Job Delete Timeout Fix (SQL Basic Tier)
 
 ## Overview

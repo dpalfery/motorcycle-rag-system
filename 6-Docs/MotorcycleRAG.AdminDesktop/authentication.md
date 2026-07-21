@@ -1,3 +1,16 @@
+---
+id: admin-desktop/authentication
+title: Admin Desktop — Auth (Entra PKCE Loopback)
+doc-type: reference
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Admin Desktop — Auth (Entra PKCE Loopback)
 
 **Decision:** no MSAL library. The entire OAuth2 flow is implemented in Rust using the `oauth2` crate (v5), with token persistence via the OS keyring (`keyring` crate v3). The frontend calls Tauri commands and manages session state via Zustand.

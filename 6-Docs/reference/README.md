@@ -1,3 +1,15 @@
+---
+id: reference/index
+title: Technical Reference
+doc-type: index
+status: current
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Technical Reference
 
 This area holds reusable, non-operational technical reference. Component-specific behavior remains in the owning application documentation folder.

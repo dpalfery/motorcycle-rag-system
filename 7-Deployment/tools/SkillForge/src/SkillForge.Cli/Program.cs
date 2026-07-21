@@ -1,6 +1,7 @@
 using Spectre.Console.Cli;
 using SkillForge.Cli.Commands;
 using SkillForge.Cli.Commands.Agents;
+using SkillForge.Cli.Commands.Docs;
 
 var app = new CommandApp();
 app.Configure(config =>
@@ -49,6 +50,28 @@ app.Configure(config =>
 
         agent.AddCommand<AgentCatalogCommand>("catalog")
             .WithDescription("Display the role x harness governance matrix.");
+    });
+
+    // Documentation Graph Governance Command Branch
+    config.AddBranch("docs", docs =>
+    {
+        docs.SetDescription("Validate documentation frontmatter and its joins to the code graph.");
+
+        docs.AddCommand<DocsValidateCommand>("validate")
+            .WithDescription("Check documentation frontmatter against the ontology schema (SF-DOC-SPEC-*).")
+            .WithExample("docs", "validate", ".");
+
+        docs.AddCommand<DocsDriftCommand>("drift")
+            .WithDescription("Resolve documented code references against the CodeGraph index (SF-DOC-DRIFT-*).")
+            .WithExample("docs", "drift", ".");
+
+        docs.AddCommand<DocsGraphCommand>("graph")
+            .WithDescription("Export the documentation graph as nodes.jsonl and edges.jsonl.")
+            .WithExample("docs", "graph", ".", "--out", "./build/doc-graph");
+
+        docs.AddCommand<DocsCatalogCommand>("catalog")
+            .WithDescription("Display doc-type coverage by component.")
+            .WithExample("docs", "catalog", ".");
     });
 });
 

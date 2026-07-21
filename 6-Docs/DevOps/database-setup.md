@@ -1,3 +1,15 @@
+---
+id: devops/database-setup
+title: Database Setup CLI
+doc-type: reference
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Database Setup CLI
 
 The Database Setup CLI provisions a local development SQL database and schema. Its source-root [README](../../7-Deployment/DbSetup/README.md) is the canonical command reference.

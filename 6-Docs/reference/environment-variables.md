@@ -1,3 +1,15 @@
+---
+id: reference/environment-variables
+title: Environment Variables Reference
+doc-type: reference
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Environment Variables Reference
 
 Environment variables are not a general configuration mechanism for this repository.

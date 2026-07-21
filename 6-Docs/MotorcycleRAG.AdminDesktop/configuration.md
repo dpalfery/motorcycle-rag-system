@@ -1,3 +1,16 @@
+---
+id: admin-desktop/configuration
+title: Admin Desktop — Config Persistence
+doc-type: reference
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Admin Desktop — Config Persistence
 
 `AppConfig` fields (all in `src/lib/config.ts → DEFAULT_CONFIG`). Treat source as authoritative for current values; the table records the configuration surface rather than stable deployment defaults:

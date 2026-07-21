@@ -1,3 +1,17 @@
+---
+id: admin-desktop/onboarding
+title: MotorcycleRAG Admin Desktop Developer Onboarding
+doc-type: onboarding
+status: current
+component: MotorcycleRAG Admin Desktop
+source-root: 1-Presentation/MotorcycleRAG.AdminDesktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Admin Desktop Developer Onboarding
 
 ## Prerequisites

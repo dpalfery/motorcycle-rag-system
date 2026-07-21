@@ -58,6 +58,8 @@ jobs:
               - '**/AGENTS.md'
               - '7-Deployment/scripts/validate-docs.sh'
               - '.markdownlint-cli2.yaml'
+              - '7-Deployment/tools/SkillForge/src/SkillForge.Core/Docs/**'
+              - '7-Deployment/tools/SkillForge/src/SkillForge.Cli/Commands/Docs/**'
             infra:
               - '.github/**'
               - '7-Deployment/**'
@@ -199,6 +201,18 @@ jobs:
       - name: Validate documentation catalog and structure
         run: bash 7-Deployment/scripts/validate-docs.sh
 
+      # Schema tier of the documentation ontology (SF-DOC-SPEC-*). Needs no code
+      # index, so it runs on every documentation change.
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Validate documentation frontmatter
+        run: >-
+          dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli
+          -- docs validate . --format table
+
       - name: Check internal documentation links
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
@@ -209,13 +223,16 @@ jobs:
             1-Presentation/MotorcycleRAG.AdminDesktop/README.md
             1-Presentation/MotorcycleRAG.MobileApp/README.md
             1-Presentation/MotorcycleRag.WebUI/README.md
+            1-Presentation/MotorcycleRag.WebUI.BFF/README.md
             2-Application/local-processing-service/README.md
             2-Application/MotorcycleRAG.Application/Services/Caching/README.md
             7-Deployment/README.md 7-Deployment/DbSetup/README.md
             7-Deployment/tools/SkillForge/README.md
             6-Docs/README.md 6-Docs/catalog.md 6-Docs/documentation-standard.md
+            6-Docs/documentation-ontology.md
             6-Docs/system 6-Docs/MotorcycleRAG.API 6-Docs/MotorcycleRAG.AdminDesktop
             6-Docs/MotorcycleRAG.MobileApp 6-Docs/MotorcycleRag.WebUI
+            6-Docs/MotorcycleRag.WebUI.BFF 6-Docs/operations
             6-Docs/local-processing-service 6-Docs/AzureEnvironment
             6-Docs/DevOps/README.md 6-Docs/DevOps/database-setup.md
             6-Docs/reference/README.md 6-Docs/reference/skillforge.md
@@ -589,7 +606,7 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Build SkillForge
         run: dotnet build 7-Deployment/tools/SkillForge/src/SkillForge.Cli/SkillForge.Cli.csproj -c Release
@@ -640,12 +657,90 @@ jobs:
           category: skillforge-kilo
 
   # ─────────────────────────────────────────────────────────────────────
+  # Documentation entity drift (SF-DOC-DRIFT-*)
+  #
+  # Runs when code OR docs change: a rename on the code side breaks a
+  # documentation reference just as surely as editing the reference does, and
+  # only resolution against the CodeGraph index surfaces it — the prose still
+  # reads correctly either way.
+  # ─────────────────────────────────────────────────────────────────────
+  doc-graph-drift:
+    name: Documentation Graph Drift
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.docs == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # A cold index is ~1,100 files. Cache it keyed on the tracked source tree so
+      # the common case is an incremental `codegraph sync`, not a full rebuild.
+      - name: Compute source tree hash
+        id: srchash
+        run: |
+          HASH=$(git ls-files \
+            '0-Base/**' '1-Presentation/**' '2-Application/**' \
+            '3-Domain/**' '4-Persistence/**' '7-Deployment/**' \
+            | sort | xargs -r sha1sum | sha1sum | cut -d' ' -f1)
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore CodeGraph index
+        id: cgcache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .codegraph
+          key: codegraph-${{ runner.os }}-${{ steps.srchash.outputs.hash }}
+          restore-keys: |
+            codegraph-${{ runner.os }}-
+
+      - name: Install CodeGraph
+        run: npm install -g @colbymchenry/codegraph
+
+      - name: Build or sync the index
+        run: |
+          if [ -f .codegraph/codegraph.db ]; then
+            codegraph sync .
+          else
+            codegraph index .
+          fi
+
+      - name: Verify documentation entity drift
+        run: >-
+          dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli
+          -- docs drift . --format table
+
+      - name: Export the documentation graph
+        run: >-
+          dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli
+          -- docs graph . --out ./build/doc-graph
+
+      - name: Upload the documentation graph
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: doc-graph
+          path: build/doc-graph/
+          retention-days: 14
+
+  # ─────────────────────────────────────────────────────────────────────
   # Gate summary — single required check
   # ─────────────────────────────────────────────────────────────────────
   pr-gate-summary:
     name: PR Gate Summary
     runs-on: ubuntu-latest
-    needs: [build-test, docs-quality, codeql, trivy, semgrep, iac-scan, integration, e2e, skill-gate]
+    needs: [build-test, docs-quality, doc-graph-drift, codeql, trivy, semgrep, iac-scan, integration, e2e, skill-gate]
     if: always()
 
     steps:
@@ -657,6 +752,7 @@ jobs:
           echo "|-----|--------|" >> results.md
           echo "| Build & Unit Tests | ${{ needs.build-test.result }} |" >> results.md
           echo "| Documentation Quality | ${{ needs.docs-quality.result }} |" >> results.md
+          echo "| Documentation Graph Drift | ${{ needs.doc-graph-drift.result }} |" >> results.md
           echo "| CodeQL Analysis | ${{ needs.codeql.result }} |" >> results.md
           echo "| Trivy OSS Security Scan | ${{ needs.trivy.result }} |" >> results.md
           echo "| Semgrep Community SAST | ${{ needs.semgrep.result }} |" >> results.md
@@ -671,6 +767,7 @@ jobs:
           for result in \
             "${{ needs.build-test.result }}" \
             "${{ needs.docs-quality.result }}" \
+            "${{ needs.doc-graph-drift.result }}" \
             "${{ needs.codeql.result }}" \
             "${{ needs.trivy.result }}" \
             "${{ needs.semgrep.result }}" \

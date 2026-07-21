@@ -1,3 +1,16 @@
+---
+id: system/security
+title: Security Directives
+doc-type: governance
+status: current
+component: MotorcycleRAG system
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Security Directives
 
 These are **non-optional** and apply to all code, tests, config, scripts, and docs.

@@ -12,14 +12,29 @@ public enum Severity
 /// A single finding from a validation, lint, or security rule. The <see cref="Code"/>
 /// is a stable identifier (e.g. SF-SPEC-001) suitable for suppression and SARIF.
 /// </summary>
+/// <param name="Code">Stable rule identifier, e.g. SF-SPEC-001 or SF-DOC-DRIFT-001.</param>
+/// <param name="Severity">How severe the finding is.</param>
+/// <param name="Message">One-sentence statement of the finding.</param>
+/// <param name="Subject">
+/// What the finding is about: a skill name, an agent role, or a document id. Named
+/// generically because the diagnostic model is shared across artifact classes.
+/// </param>
+/// <param name="FilePath">Path of the file the finding is in, when known.</param>
+/// <param name="Hint">Optional remediation hint.</param>
 public sealed record Diagnostic(
     string Code,
     Severity Severity,
     string Message,
-    string SkillName,
+    string Subject,
     string? FilePath = null,
     string? Hint = null)
 {
+    /// <summary>
+    /// Backwards-compatible alias for <see cref="Subject"/>, retained so existing skill
+    /// and agent call sites continue to compile.
+    /// </summary>
+    public string SkillName => Subject;
+
     public override string ToString() => $"[{Code}] {Severity}: {Message}";
 }
 

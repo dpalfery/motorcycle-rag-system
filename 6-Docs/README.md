@@ -1,3 +1,15 @@
+---
+id: system/docs-index
+title: MotorcycleRAG Documentation
+doc-type: index
+status: current
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Documentation
 
 This directory is the canonical home for detailed MotorcycleRAG documentation. Start with the system documents, then follow the component or operational path that matches your task.
@@ -8,6 +20,7 @@ This directory is the canonical home for detailed MotorcycleRAG documentation. S
 - [System architecture](system/architecture.md)
 - [System requirements](system/requirements.md)
 - [Documentation standard](documentation-standard.md)
+- [Documentation ontology](documentation-ontology.md)
 - [Component catalog](catalog.md)
 
 ## Applications and services
@@ -15,14 +28,15 @@ This directory is the canonical home for detailed MotorcycleRAG documentation. S
 - [API](MotorcycleRAG.API/)
 - [Admin Desktop](MotorcycleRAG.AdminDesktop/)
 - [Mobile App](MotorcycleRAG.MobileApp/)
-- [Web UI and BFF](MotorcycleRag.WebUI/)
+- [Web UI](MotorcycleRag.WebUI/)
+- [Web UI BFF](MotorcycleRag.WebUI.BFF/)
 - [Local Processing Service](local-processing-service/)
 - [Azure Environment](AzureEnvironment/)
 
 ## Build, deployment, and operations
 
 - [DevOps documentation](DevOps/)
-- [Operations runbooks](operations/)
+- [Operations runbooks](operations/) — [GitHub branch protection](operations/github-branch-protection.md); BFF data protection: [operations](operations/webui-bff-data-protection-operations.md), [disaster recovery](operations/webui-bff-data-protection-disaster-recovery.md), [troubleshooting](operations/webui-bff-data-protection-troubleshooting.md)
 - [Reference material](reference/)
 - [Architecture placement rules](rules/architecture-general.md)
 - [Architecture decisions](adr/)

@@ -1,3 +1,15 @@
+---
+id: adr/2026-07-16-schema-deployment-idempotent-sql
+title: "ADR-2026-07-16: Schema Deployment — Idempotent SQL"
+doc-type: adr
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # ADR-2026-07-16: Schema Deployment — Idempotent SQL
 
 **Status:** Accepted  

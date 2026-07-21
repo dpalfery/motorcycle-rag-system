@@ -1,3 +1,16 @@
+---
+id: system/architecture
+title: MotorcycleRAG System Architecture
+doc-type: architecture
+status: current
+component: MotorcycleRAG system
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG System Architecture
 
 ## Overview

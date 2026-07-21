@@ -1,3 +1,16 @@
+---
+id: specs/admin-desktop-bootstrap-design
+title: Admin Desktop Local Processor Bootstrap Design
+doc-type: spec
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Admin Desktop Local Processor Bootstrap Design
 
 ## Overview
@@ -138,7 +151,7 @@ Requirements implemented by this component:
 Recommended path strategy:
 
 - Packaged mode: OS-appropriate application diagnostics folder under a visible application directory.
-- Repository development mode: a visible diagnostics directory such as `6-Docs/agent-notes/logs/` or another existing non-hidden git-ignored workspace path.
+- Repository development mode: a visible diagnostics directory such as the repository-root `logs/` (already git-ignored) or another existing non-hidden git-ignored workspace path. The agent scratchpad is not a candidate: it is a hidden dotfolder, which this requirement excludes.
 
 The exact path may follow existing repository conventions, but hidden dotfolders are not allowed for routine log discovery.
 

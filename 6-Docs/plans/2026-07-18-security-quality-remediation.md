@@ -1,3 +1,16 @@
+---
+id: plans/2026-07-18-security-quality-remediation
+title: Security and Quality Alert Remediation
+doc-type: plan
+status: needs-review
+component: MotorcycleRAG system
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Security and Quality Alert Remediation
 
 **Status:** Review required

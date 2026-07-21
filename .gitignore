@@ -29,9 +29,13 @@ Generated\ Files/
 # Test results folder
 test-results/
 
-# Agent-generated notes (keep repo root clean)
-6-Docs/agent-notes/**
-!6-Docs/agent-notes/.gitkeep
+# Agent scratchpad (keep 6-Docs/ canonical-only)
+.agent-scratch-pad/**
+!.agent-scratch-pad/.gitkeep
+!.agent-scratch-pad/README.md
+
+# APM package cache (rebuilt from apm.lock.yaml by `apm install`)
+apm_modules/
 
 # Ignore any root-level .txt scratch files
 /*.txt

@@ -1,3 +1,15 @@
+---
+id: devops/overview
+title: Deployment Configuration
+doc-type: reference
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Deployment Configuration
 
 This project uses **Pulumi** for Infrastructure-as-Code and **GitHub Actions** for the CI/CD pipeline.
@@ -140,7 +152,7 @@ flowchart LR
 
 - Single required check that depends on all Phase 1–3 jobs.
 - Evaluates results, generates a markdown table, and posts/updates a comment on the PR with the pass/fail status.
-- Branch protection should require `pr-gate / PR Gate Summary` as the sole mandatory check (see [branch protection update](../agent-notes/branch-protection-update.md)).
+- Branch protection should require `pr-gate / PR Gate Summary` as the sole mandatory check (see [GitHub branch protection](../operations/github-branch-protection.md)).
 
 ### 4.2 Nightly Tests & Security Scans (`nightly.yml`)
 

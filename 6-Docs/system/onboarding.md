@@ -1,3 +1,17 @@
+---
+id: system/onboarding
+title: MotorcycleRAG System Developer Onboarding
+doc-type: onboarding
+status: current
+component: MotorcycleRAG system
+source-root: .
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG System Developer Onboarding
 
 ## Purpose

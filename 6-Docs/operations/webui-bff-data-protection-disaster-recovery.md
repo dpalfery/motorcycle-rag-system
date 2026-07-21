@@ -1,6 +1,23 @@
+---
+id: operations/webui-bff-data-protection-disaster-recovery
+title: Data Protection Key Persistence — Disaster Recovery Guide
+doc-type: runbook
+status: current
+component: MotorcycleRAG Web UI BFF
+source-root: 1-Presentation/MotorcycleRag.WebUI.BFF
+owner: Web UI maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - DataProtectionServiceConfiguration
+  - AddBffDataProtection
+  - AzureBlobDataProtectionProbe
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
+
 # Data Protection Key Persistence — Disaster Recovery Guide
 
-**Component:** `MotorcycleRag.WebUI.BFF`  
 **Audience:** DevOps Engineers, SREs  
 **Approval Required:** Team Lead sign-off before executing any key rotation or deletion procedure
 
@@ -28,7 +45,7 @@ The `keys.xml` blob in Azure Blob Storage contains the ASP.NET Core Data Protect
 ### Impact of Key Loss
 
 | Scenario | User Impact | Recovery Time |
-|---|---|---|
+| --- | --- | --- |
 | Temporary blob unavailability | No new logins; existing sessions may fail | Minutes (blob restored) |
 | Key ring blob deleted | All active sessions invalidated; all users logged out | ~5 minutes (restore from backup) |
 | Keys corrupted | All active sessions invalidated; all users logged out | ~5 minutes (restore from backup) |
@@ -87,10 +104,12 @@ ls -la keys-backup-*.xml
 ### Backup Storage Location
 
 Store manual backups in:
+
 - An Azure Key Vault secret (base64-encoded XML content)
 - A separate storage account with restricted access
 
 Do not store backups in:
+
 - Git repositories
 - Shared file systems
 - Email attachments
@@ -168,7 +187,7 @@ Then trigger a new container revision via the deployment pipeline to reload keys
 If no backup exists and the key ring is lost:
 
 1. Accept that all active sessions are invalidated — users must log in again.
-2. Ensure `DataProtection:BlobUri` is configured correctly (see [Troubleshooting Guide](data-protection-troubleshooting.md)).
+2. Ensure `DataProtection:BlobUri` is configured correctly (see [Troubleshooting Guide](webui-bff-data-protection-troubleshooting.md)).
 3. Deploy a new revision. On startup, ASP.NET Core will generate a fresh key ring and write it to `keys.xml`.
 4. Verify the health check returns `Healthy`.
 5. Notify users via your standard incident communication channel.
@@ -188,6 +207,7 @@ Signs that `keys.xml` may be corrupted:
 ### Recovery Procedure
 
 1. **Download the current (potentially corrupted) file for forensic analysis:**
+
    ```bash
    az storage blob download \
      --account-name <storage-account> \
@@ -200,6 +220,7 @@ Signs that `keys.xml` may be corrupted:
 2. **Attempt to restore from backup** (see [Restoring Encryption Keys](#restoring-encryption-keys)).
 
 3. **If no backup exists**, delete the corrupted file:
+
    ```bash
    az storage blob delete \
      --account-name <storage-account> \
@@ -207,14 +228,17 @@ Signs that `keys.xml` may be corrupted:
      --name keys.xml \
      --auth-mode login
    ```
+
    > **Requires approval.** This action invalidates all active sessions.
 
 4. **Deploy a new container revision** via the pipeline. ASP.NET Core will generate a new key ring on startup.
 
 5. **Verify recovery:**
+
    ```bash
    curl https://<bff-hostname>/health | python -m json.tool
    ```
+
    The `data_protection_blob` status must return `Healthy`.
 
 ---
@@ -232,6 +256,7 @@ ASP.NET Core Data Protection rotates keys automatically (every 90 days by defaul
 The safest way to force key rotation is to deploy a new revision with a fresh key ring:
 
 1. **Backup current keys:**
+
    ```bash
    az storage blob download \
      --account-name <storage-account> \
@@ -242,6 +267,7 @@ The safest way to force key rotation is to deploy a new revision with a fresh ke
    ```
 
 2. **Delete the current key ring blob:**
+
    ```bash
    az storage blob delete \
      --account-name <storage-account> \
@@ -249,11 +275,13 @@ The safest way to force key rotation is to deploy a new revision with a fresh ke
      --name keys.xml \
      --auth-mode login
    ```
+
    > **Requires approval.** This invalidates all active sessions.
 
 3. **Deploy a new container revision** via the pipeline to generate a fresh key ring.
 
 4. **Verify:**
+
    ```bash
    curl https://<bff-hostname>/health | python -m json.tool
    ```
@@ -285,6 +313,7 @@ If the Azure Storage account hosting `keys.xml` becomes unavailable:
 ### Recovery Steps
 
 1. **Monitor storage account availability:**
+
    ```bash
    az storage account show \
      --name <storage-account> \
@@ -297,6 +326,7 @@ If the Azure Storage account hosting `keys.xml` becomes unavailable:
 3. **Do not restart containers** during a storage outage — the in-memory key ring will be lost and recovery will require the storage to be available.
 
 4. Once storage is restored, verify the health check:
+
    ```bash
    curl https://<bff-hostname>/health | python -m json.tool
    ```
@@ -313,7 +343,7 @@ To improve resilience against regional storage failures, configure the storage a
 
 Use this decision tree when responding to a Data Protection incident:
 
-```
+```text
 Are users being logged out unexpectedly?
 │
 ├─ YES → Check /health endpoint
@@ -341,8 +371,8 @@ Are users being logged out unexpectedly?
 
 ## Related Documentation
 
-- [Architecture Guide](data-protection-architecture.md)
-- [Troubleshooting Guide](data-protection-troubleshooting.md)
-- [Operations Guide](data-protection-operations.md)
+- [Architecture Guide](../MotorcycleRag.WebUI.BFF/data-protection.md)
+- [Troubleshooting Guide](webui-bff-data-protection-troubleshooting.md)
+- [Operations Guide](webui-bff-data-protection-operations.md)
 - [ASP.NET Core Data Protection Key Management (Microsoft Learn)](https://learn.microsoft.com/aspnet/core/security/data-protection/implementation/key-management)
 - [Azure Blob Storage Soft Delete (Microsoft Learn)](https://learn.microsoft.com/azure/storage/blobs/soft-delete-blob-overview)

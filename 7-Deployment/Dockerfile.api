@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 RUN apt-get update \
     && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends \
-        tar=1.35+dfsg-3ubuntu0.3 \
+        tar=1.35+dfsg-3ubuntu0.4 \
         perl-base=5.38.2-3.2ubuntu0.3 \
         gzip=1.12-1ubuntu3.2 \
     && apt-get clean \

@@ -46,7 +46,7 @@ This directory is the canonical home for detailed MotorcycleRAG documentation. S
 ## Change history
 
 - [Plan index and active plans](plans/README.md)
-- [Feature specifications](specs/)
+- [Specification index and active specifications](specs/README.md)
 - [Archived material](archive/) — historical reference only; never treat it as current guidance.
 
 ## Finding documentation

@@ -84,7 +84,7 @@ The `nightly.yml` pipeline runs on schedule and does not block PRs. These check 
 | `nightly / Azure Integration Tests` | `azure-integration-tests` | Real Azure service tests |
 | `nightly / Load Tests` | `load-tests` | NBomber load testing |
 | `nightly / Performance Analysis` | `performance-analysis` | Performance metrics reporting |
-| `nightly / SkillForge Skill Gate` | `skill-gate` | Skill directory validation |
+| `nightly / Kyber-Weave Skill Gate` | `skill-gate` | Skill directory validation |
 | `nightly / Snyk SCA + SAST` | `snyk-sca-sast` | Full dependency + code security scan |
 | `nightly / Snyk Container — API` | `snyk-container-api` | API container image scan |
 | `nightly / Snyk Container — UI` | `snyk-container-ui` | UI container image scan |

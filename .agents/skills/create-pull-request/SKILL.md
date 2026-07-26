@@ -128,7 +128,7 @@ The PR Gate workflow (`.github/workflows/pr-gate.yml`) runs automatically on eve
 | Deep validation | `unit-mobile` | Code or infra changes | MAUI unit tests on macOS |
 | Deep validation | `integration` | Code or infra changes | Integration tests (non-Azure category) |
 | Deep validation | `e2e` | Code or infra changes | End-to-end tests with mock services |
-| Skill quality | `skill-gate` | Code or infra changes | SkillForge validate + lint + scan |
+| Skill quality | `skill-gate` | Code or infra changes | Kyber-Weave skill validate + lint + scan |
 
 ### Handling check failures
 
@@ -136,7 +136,7 @@ The PR Gate workflow (`.github/workflows/pr-gate.yml`) runs automatically on eve
 2. **Docs-quality failure:** Run `npx markdownlint-cli2` locally. Fix any broken links (check with `lychee --offline`). Run `bash 7-Deployment/scripts/validate-docs.sh` to verify catalog coverage.
 3. **Security failure (CodeQL/Snyk):** Review the SARIF output in the GitHub Security tab. Address HIGH or CRITICAL findings. If a finding is a false positive, annotate it in the PR with a brief explanation referencing the relevant SARIF rule.
 4. **Integration/E2E failure:** Check the test log for the failing test name. Reproduce locally with `dotnet test --filter "FullyQualifiedName=<test-name>"`.
-5. **Skill-gate failure:** Run SkillForge commands locally: use `dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli` with the `validate`, `lint`, or `scan` subcommands on `.agents/skills/`. Fix any validation errors or HIGH+ severity findings.
+5. **Skill-gate failure:** Run Kyber-Weave commands locally: use `dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli` with the `skill validate`, `skill lint`, or `skill scan` subcommands on `.agents/skills/`. Fix any validation errors or HIGH+ severity findings.
 
 If a check is consistently failing due to an environment issue (not your change), add a PR comment documenting the failure and tag a maintainer.
 

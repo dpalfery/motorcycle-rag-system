@@ -39,7 +39,7 @@ globs:
   - "6-Docs/DevOps/README.md"
   - "6-Docs/DevOps/database-setup.md"
   - "6-Docs/reference/README.md"
-  - "6-Docs/reference/skillforge.md"
+  - "6-Docs/reference/kyber-weave.md"
   - "2-Application/MotorcycleRAG.Application/Services/Caching/README.md"
 ignores:
   - ".git/**"

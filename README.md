@@ -22,7 +22,7 @@ MotorcycleRAG is an open-source, multi-agent retrieval-augmented generation syst
 | Local Processing Service | Python service for local PDF, CSV, and graph ingestion | [README](2-Application/local-processing-service/README.md) |
 | Azure Environment | Infrastructure, deployment assets, and operational tooling | [README](7-Deployment/README.md) |
 | Database Setup CLI | Local SQL development database provisioning tool | [README](7-Deployment/DbSetup/README.md) |
-| SkillForge | Vendored skill-validation and governance tool | [README](7-Deployment/tools/SkillForge/README.md) |
+| Kyber-Weave | Agent, skill, and documentation governance toolkit and MCP server | [README](7-Deployment/tools/KyberWeave/README.md) |
 | Caching services | Application caching and performance facilities | [README](2-Application/MotorcycleRAG.Application/Services/Caching/README.md) |
 
 ## Development and deployment

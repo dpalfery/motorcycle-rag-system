@@ -24,7 +24,7 @@ required_files=(
   "2-Application/local-processing-service/README.md"
   "7-Deployment/README.md"
   "7-Deployment/DbSetup/README.md"
-  "7-Deployment/tools/SkillForge/README.md"
+  "7-Deployment/tools/KyberWeave/README.md"
   "CODEOWNERS"
 )
 
@@ -87,7 +87,7 @@ components=(
   "Local Processing Service"
   "Azure Environment"
   "Database Setup CLI"
-  "SkillForge"
+  "Kyber-Weave"
 )
 
 for component in "${components[@]}"; do
@@ -129,7 +129,7 @@ canonical_markdown=(
   "6-Docs/DevOps/README.md"
   "6-Docs/DevOps/database-setup.md"
   "6-Docs/reference/README.md"
-  "6-Docs/reference/skillforge.md"
+  "6-Docs/reference/kyber-weave.md"
   "2-Application/MotorcycleRAG.Application/Services/Caching/README.md"
 )
 

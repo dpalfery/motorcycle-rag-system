@@ -98,6 +98,34 @@ New plans SHALL contain `Status`, `Date`, and `Goal` fields directly below the t
 
 When implementation completes, the owner SHALL: verify the plan's acceptance criteria, update the affected canonical documentation, add the implementation reference and archive date to the plan index, move the plan to `6-Docs/archive/plans/`, and change its status to `Archived`. Do not archive a plan merely because its Markdown was finalized.
 
+## Specification lifecycle
+
+A specification is a three-document set — `requirements.md`, `design.md`, `tasks.md` — under `6-Docs/specs/{feature-name}/`, produced by the product-owner planning flow before implementation begins.
+
+**A specification has the same shelf life as a plan, and is governed the same way.** It records what was intended at a point in time and goes stale the moment implementation diverges from it. It is never canonical guidance: an agent that answers from a specification is quoting a proposal, not the system. The [specification index](specs/README.md) is the only entry point, it carries the same status vocabulary as plans, and agents SHALL open only a specification listed there as `Draft`, `Ready`, `In progress`, or `Blocked`.
+
+The three documents share one status, tracked in the index and stated in each document's `Status` field. They move through it together; a specification whose design is approved but whose tasks are unwritten is still `Draft`.
+
+Specification closeout mirrors plan closeout exactly. When the tasks are delivered and their tests pass, the orchestrator SHALL assign a `docs-dev` closeout task before reporting the work complete. The documentation specialist SHALL verify the specification's requirements against the implementation evidence, update the affected canonical documentation so the durable content survives the archive, and update the specification index. Only then may it move the whole `{feature-name}/` directory to `6-Docs/archive/specs/` and set the status to `Archived`; otherwise the specification remains `Review required` or returns to an active status.
+
+Archiving a specification without first migrating its durable content is the failure this lifecycle exists to prevent. The specification is the scaffolding; the canonical documentation is the building.
+
+## Architecture decision records
+
+An ADR records a decision that constrains future work. It lives in `6-Docs/adr/` as `ADR-{date}-{slug}.md` and carries `doc-type: adr`.
+
+Unlike plans and specifications, an ADR does **not** go stale on delivery — it is a durable record of why the system is shaped the way it is, and it stays current until superseded. Superseding an ADR means writing a new one that names the old one in its `supersedes` frontmatter; the old one is then archived to `6-Docs/archive/ADRs/`. Do not edit a decision out of an accepted ADR — the record of a decision that was later reversed is exactly what makes the reversal legible.
+
+Write an ADR when a decision meets all three tests:
+
+1. It **constrains future work** — later changes must live with it.
+2. It had **viable alternatives that were rejected**, and the rejection is not self-evident.
+3. It would be **expensive to revisit** — reversing it means reworking code, data, or infrastructure.
+
+A choice that fails any of these is a normal implementation decision and belongs in the code and its documentation, not in an ADR. Recording every discussed trade-off devalues the records that matter.
+
+Documents affected by a decision link to it through the `decided-by` frontmatter key, which is how the documentation graph carries the decision to the components it governs.
+
 ## Agent workflow
 
 Before changing code or documentation, an agent SHALL read this standard and the catalog, identify the affected components, and inspect their existing README and detailed documentation. If a task refers to a plan, the agent SHALL also read the plan index and follow the lifecycle above. After the change, the agent SHALL update the relevant canonical documentation and catalog entry, or explain why no documentation impact exists.
@@ -110,8 +138,8 @@ Frontmatter validation runs in two tiers:
 
 | Tier | Command | Rule codes | Runs when |
 | --- | --- | --- | --- |
-| Schema | `skillforge docs validate` | `SF-DOC-SPEC-001`–`006` | documentation changes |
-| Drift | `skillforge docs drift` | `SF-DOC-DRIFT-001`–`003` | code or documentation changes |
+| Schema | `kyber-weave docs validate` | `KW-DOC-SPEC-001`–`006` | documentation changes |
+| Drift | `kyber-weave docs drift` | `KW-DOC-DRIFT-001`–`003` | code or documentation changes |
 
 The drift tier resolves every `code-refs` and `api-endpoints` value against `.codegraph/codegraph.db`. A renamed or deleted symbol that leaves a dangling documentation reference fails the pull request.
  Reviewers SHALL verify that the root README and `6-Docs/README.md` retain a navigable path to the affected content.

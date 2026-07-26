@@ -146,7 +146,7 @@ flowchart LR
 
 - `integration`: Runs integration tests (non-Azure, `Category!=AzureIntegration`) on the pre-built output from Phase 1.
 - `e2e`: Runs end-to-end tests with a MockServer container for external service stubs, using pre-built output.
-- `skill-gate`: Builds the SkillForge CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
+- `skill-gate`: Builds the Kyber-Weave CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
 
 **Gate summary** (`pr-gate-summary`)
 
@@ -160,7 +160,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 | Schedule | Jobs | Purpose |
 | --- | --- | --- |
-| Daily 02:00 UTC | Test suite (unit, integration, E2E, Azure integration, load, performance, SkillForge) | Full regression validation |
+| Daily 02:00 UTC | Test suite (unit, integration, E2E, Azure integration, load, performance, Kyber-Weave skill gate) | Full regression validation |
 | Daily 03:00 UTC | Snyk (SCA+SAST + container) and Trivy container rebuild/scan for API, UI, and Local Processor images | Comprehensive security posture |
 
 **Test jobs (2 AM trigger):**
@@ -172,7 +172,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 - `azure-integration-tests`: Tests against real Azure services (requires `environment: testing`). Only runs on schedule or when `run_integration_tests` input is `true`.
 - `load-tests`: NBomber-based load tests (3 min duration, 20 concurrent users in CI). Only runs on schedule or when `run_load_tests` input is `true`.
 - `performance-analysis`: Generates a performance report from E2E and load test results.
-- `skill-gate`: Same SkillForge validation as the PR gate, but runs after unit tests (not blocking deployment).
+- `skill-gate`: Same Kyber-Weave validation as the PR gate, but runs after unit tests (not blocking deployment).
 
 **IaC security scan (runs on all triggers, 2 AM + 3 AM):**
 

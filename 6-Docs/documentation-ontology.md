@@ -24,7 +24,7 @@ The type sets below are **closed**. Adding a node type, edge type, `doc-type`, o
 
 ## Frontmatter schema
 
-Every in-scope document begins with a YAML frontmatter block. Keys are **hyphenated**, matching the `HyphenatedNamingConvention` deserializer used by SkillForge.
+Every in-scope document begins with a YAML frontmatter block. Keys are **hyphenated**, matching the `HyphenatedNamingConvention` deserializer used by Kyber-Weave.
 
 ```yaml
 ---
@@ -192,14 +192,14 @@ Two rules follow.
 
    | Tier | Command | Rules |
    | --- | --- | --- |
-   | Schema | `skillforge docs validate` | `SF-DOC-SPEC-001` … `SF-DOC-SPEC-006` |
-   | Drift | `skillforge docs drift` | `SF-DOC-DRIFT-001` … `SF-DOC-DRIFT-003` |
+   | Schema | `kyber-weave docs validate` | `KW-DOC-SPEC-001` … `KW-DOC-SPEC-006` |
+   | Drift | `kyber-weave docs drift` | `KW-DOC-DRIFT-001` … `KW-DOC-DRIFT-003` |
 
    The schema tier needs no index and runs on every documentation change. The drift tier resolves against `.codegraph/codegraph.db` and runs whenever code or documentation changes.
 
 ## Graph export
 
-`skillforge docs graph --out <dir>` emits `nodes.jsonl` and `edges.jsonl`, one JSON object per line:
+`kyber-weave docs graph --out <dir>` emits `nodes.jsonl` and `edges.jsonl`, one JSON object per line:
 
 ```json
 {"type":"node","id":"doc:webui-bff/data-protection-operations","label":"Document","docType":"runbook","title":"…","path":"6-Docs/operations/webui-bff-data-protection-operations.md"}

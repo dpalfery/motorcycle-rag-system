@@ -414,9 +414,9 @@ jobs:
         path: performance-report.json
 
   skill-gate:
-    name: SkillForge Skill Gate
+    name: Kyber-Weave Skill Gate
     runs-on: ubuntu-latest
-    continue-on-error: true  # TODO: Remove continue-on-error once all skills pass SkillForge validation
+    continue-on-error: true  # TODO: Remove continue-on-error once all skills pass Kyber-Weave validation
     needs: unit-tests
 
     steps:
@@ -429,50 +429,50 @@ jobs:
       with:
         dotnet-version: '10.0.x'
 
-    - name: Build SkillForge
-      run: dotnet build 7-Deployment/tools/SkillForge/src/SkillForge.Cli/SkillForge.Cli.csproj -c Release
+    - name: Build Kyber-Weave
+      run: dotnet build 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/KyberWeave.Cli.csproj -c Release
 
     - name: Validate .agents/skills
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .agents/skills --format table
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .agents/skills --format table
 
     - name: Lint .agents/skills
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .agents/skills --min-desc-score 70 --format table
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .agents/skills --min-desc-score 70 --format table
 
     - name: Scan .agents/skills (SARIF)
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .agents/skills --fail-on critical --format sarif > kyber-weave-agents.sarif
 
     - name: Upload .agents/skills SARIF
       uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       with:
-        sarif_file: skillforge-agents.sarif
+        sarif_file: kyber-weave-agents.sarif
 
     - name: Validate .claude/skills
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .claude/skills --format table
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .claude/skills --format table
 
     - name: Lint .claude/skills
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .claude/skills --min-desc-score 70 --format table
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .claude/skills --min-desc-score 70 --format table
 
     - name: Scan .claude/skills (SARIF)
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .claude/skills --fail-on critical --format sarif > kyber-weave-claude.sarif
 
     - name: Upload .claude/skills SARIF
       uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       with:
-        sarif_file: skillforge-claude.sarif
+        sarif_file: kyber-weave-claude.sarif
 
     - name: Validate .kilo/skills
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .kilo/skills --format table
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .kilo/skills --format table
 
     - name: Lint .kilo/skills
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .kilo/skills --min-desc-score 70 --format table
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .kilo/skills --min-desc-score 70 --format table
 
     - name: Scan .kilo/skills (SARIF)
-      run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
+      run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .kilo/skills --fail-on critical --format sarif > kyber-weave-kilo.sarif
 
     - name: Upload .kilo/skills SARIF
       uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
       with:
-        sarif_file: skillforge-kilo.sarif
+        sarif_file: kyber-weave-kilo.sarif
 
   # ===========================================================================
   # IaC SECURITY SCAN (runs on all nightly triggers)
@@ -619,7 +619,7 @@ jobs:
         echo "| Azure Integration | ${{ needs.azure-integration-tests.result }} | Real Azure service validation |" >> test-summary.md
         echo "| Load Tests | ${{ needs.load-tests.result }} | Performance under load validation |" >> test-summary.md
         echo "| Performance Analysis | ${{ needs.performance-analysis.result }} | Performance metrics analysis |" >> test-summary.md
-        echo "| Skill Gate | ${{ needs.skill-gate.result }} | SkillForge validation |" >> test-summary.md
+        echo "| Skill Gate | ${{ needs.skill-gate.result }} | Kyber-Weave validation |" >> test-summary.md
         echo "| IaC Security Scan | ${{ needs.iac-scan.result }} | Checkov IaC scan |" >> test-summary.md
         echo "| Trivy Container Scan | ${{ needs.trivy-container-scan.result }} | Container vulnerability scan |" >> test-summary.md
         echo "" >> test-summary.md

@@ -27,7 +27,7 @@ Report at most five Nits per review. If you found more, say "plus N similar item
 - Anything CI already enforces: markdownlint, documentation structure and link checks (`7-Deployment/scripts/validate-docs.sh`, lychee), gitleaks on documentation, code formatting, and the coverage gates in `comprehensive-testing.yml`.
 - `6-Docs/archive/**` — historical content, explicitly not current guidance.
 - `.agent-scratch-pad/**` — scratch notes, not deliverables.
-- `7-Deployment/tools/SkillForge/**` — vendored tool.
+- `7-Deployment/tools/KyberWeave/**` — the Kyber-Weave governance toolkit.
 - Generated code and lockfiles: `**/api/generated/**`, `*.lock`, `packages.lock.json`, `pnpm-lock.yaml`.
 - Test-only code that intentionally violates production rules (fakes, fixtures, in-memory doubles).
 

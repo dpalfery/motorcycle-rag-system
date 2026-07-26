@@ -5,6 +5,7 @@
 ## Non-negotiable rules
 
 - **CodeGraph first:** Before using `grep`, `rg`, `find`, shell globbing, or direct file reads to locate or understand repository files or source code, use CodeGraph. Prefer the CodeGraph MCP tool; if it is unavailable, run `codegraph explore`. Use another discovery or read method only when CodeGraph fails to return a relevant, sufficiently complete source result, and state that failure before using the fallback.
+- **Kyber-Weave for documentation:** Before grepping or reading files under `6-Docs/` to answer a question, use the Kyber-Weave MCP tool `mcp__kyber-weave__docs_explore`. It ranks on declared frontmatter identity, returns the one relevant `##` section rather than a whole runbook, and carries that document's resolved joins to the code graph. Before renaming, moving, or changing the contract of a code symbol, use `mcp__kyber-weave__docs_for_symbol` to find the documentation that must change with it: a `code-refs` entry is a formal claim of ownership, which grep cannot distinguish from a passing prose mention. There is no CLI equivalent of either tool — if the MCP server is unavailable, fall back to the [documentation index](6-Docs/README.md) and state that the tool was unavailable. The corpus excludes `6-Docs/archive/`, which is historical and is never retrieved as current guidance.
 - Do not create infrastructure, deployment assets, dependencies, cross-cutting concerns, or documentation files without user approval. Ask before an architectural decision; present the trade-offs.
 - Do not commit, push, reset, restore, checkout, clean, or rebase without explicit user approval. Keep agent-generated notes in the path declared as **Agent Scratchpad** in the Config Registry below, never at repository root and never under `6-Docs/`.
 - Do not introduce fallbacks, stubs, or workarounds without explicit approval. Fix the root cause.
@@ -18,11 +19,21 @@ Read the full [working agreement](6-Docs/system/agent-governance.md), [security 
 
 ## Documentation and placement
 
-Start from the [documentation index](6-Docs/README.md); it is the canonical entry point to system, component, operational, and change-history documentation. Before changing a cataloged component, read the [documentation standard](6-Docs/documentation-standard.md), [component catalog](6-Docs/catalog.md), the source-root README, and the component's detailed documentation. Update canonical documentation when the public interface, configuration, architecture, runtime, operations, or workflow changes.
+Retrieve with `mcp__kyber-weave__docs_explore` first, per the non-negotiable rule above. The [documentation index](6-Docs/README.md) is the canonical entry point for browsing, and the fallback when the tool is unavailable. Before changing a cataloged component, read the [documentation standard](6-Docs/documentation-standard.md), [component catalog](6-Docs/catalog.md), the source-root README, and the component's detailed documentation. Update canonical documentation when the public interface, configuration, architecture, runtime, operations, or workflow changes.
 
-## Plan closeout
+## Plan and specification closeout
 
-For plan-backed work, implementation completion does not close the plan. After implementation verification is complete, the orchestrator SHALL assign a `docs-dev` plan-closeout task before reporting the work complete. The documentation specialist SHALL verify the plan's acceptance criteria against the implementation evidence, update the affected canonical documentation, and maintain the [plan index](6-Docs/plans/README.md). Only then may it archive the plan under `6-Docs/archive/plans/` with status `Archived`; otherwise the plan remains `Review required` or returns to an active status. The documentation standard defines the detailed lifecycle.
+Plans and specifications are both **work in progress with a shelf life, never canonical guidance.** Each records what was intended and goes stale the moment implementation diverges. Both are governed identically.
+
+For plan-backed work, implementation completion does not close the plan. After implementation verification is complete, the orchestrator SHALL assign a `docs-dev` plan-closeout task before reporting the work complete. The documentation specialist SHALL verify the plan's acceptance criteria against the implementation evidence, update the affected canonical documentation, and maintain the [plan index](6-Docs/plans/README.md). Only then may it archive the plan under `6-Docs/archive/plans/` with status `Archived`; otherwise the plan remains `Review required` or returns to an active status.
+
+For specification-backed work the same rule applies, with the same agent and the same gate: when the tasks are delivered and their tests pass, the orchestrator SHALL assign a `docs-dev` specification-closeout task. The documentation specialist SHALL verify the specification's requirements against the implementation evidence, migrate the durable content into canonical documentation, and maintain the [specification index](6-Docs/specs/README.md). Only then may it move the whole `6-Docs/specs/{feature-name}/` directory to `6-Docs/archive/specs/` with status `Archived`. Archiving a specification before its durable content has been migrated is the failure this gate exists to prevent.
+
+The documentation standard defines both lifecycles in detail, and the rules for [architecture decision records](6-Docs/documentation-standard.md), which unlike plans and specifications stay current until superseded.
+
+## Kyber-Weave
+
+**Kyber-Weave** is the name of this repository's agent-and-documentation governance framework: the CLI, library, CI gates and MCP server that govern skills, agent definitions, and documentation as one. Its premise is that every artifact shaping agent behavior is a supply-chain artifact — parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The commands named throughout this file (`kyber-weave skill|agent|docs …`) and the `KW-*` rule codes are its surface. See the [Kyber-Weave reference](6-Docs/reference/kyber-weave.md).
 
 ## Agent configuration synchronization
 
@@ -58,10 +69,14 @@ Agents and skills should look up the following properties dynamically to find th
 - **Documentation Index:** `6-Docs/README.md`
 - **Documentation Standard:** `6-Docs/documentation-standard.md`
 - **Documentation Ontology:** `6-Docs/documentation-ontology.md`
+- **Governance Framework (Kyber-Weave):** `7-Deployment/tools/KyberWeave/` — reference: `6-Docs/reference/kyber-weave.md`; CLI project: `7-Deployment/tools/KyberWeave/src/KyberWeave.Cli`; MCP server project: `7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp`
+- **Skill Validation Script:** `7-Deployment/scripts/kyber-weave-validate.sh`
 - **Agent Scratchpad:** `.agent-scratch-pad/`
 - **Clean Architecture Rules:** `6-Docs/rules/architecture-general.md`
 - **Component Catalog:** `6-Docs/catalog.md`
 - **Plan Index:** `6-Docs/plans/README.md`
+- **Specification Index:** `6-Docs/specs/README.md`
+- **Architecture Decision Records:** `6-Docs/adr/` (archived: `6-Docs/archive/ADRs/`)
 - **Developer Setup Standard:** `6-Docs/DevOps/developer-setup-standard.md`
 - **MSBuild Modernization:** `6-Docs/DevOps/msbuild-modernization.md`
 - **MSBuild Anti-patterns:** `6-Docs/DevOps/msbuild-antipatterns.md`

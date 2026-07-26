@@ -8,6 +8,20 @@
         "--mcp"
       ]
     },
+    "kyber-weave": {
+      "type": "stdio",
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp",
+        "-v",
+        "q",
+        "--",
+        "--repo-root",
+        "."
+      ]
+    },
     "context7": {
       "type": "http",
       "url": "https://mcp.context7.com/mcp"

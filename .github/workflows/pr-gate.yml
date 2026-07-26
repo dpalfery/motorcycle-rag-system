@@ -58,8 +58,8 @@ jobs:
               - '**/AGENTS.md'
               - '7-Deployment/scripts/validate-docs.sh'
               - '.markdownlint-cli2.yaml'
-              - '7-Deployment/tools/SkillForge/src/SkillForge.Core/Docs/**'
-              - '7-Deployment/tools/SkillForge/src/SkillForge.Cli/Commands/Docs/**'
+              - '7-Deployment/tools/KyberWeave/src/KyberWeave.Core/Docs/**'
+              - '7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/Commands/Docs/**'
             infra:
               - '.github/**'
               - '7-Deployment/**'
@@ -201,7 +201,7 @@ jobs:
       - name: Validate documentation catalog and structure
         run: bash 7-Deployment/scripts/validate-docs.sh
 
-      # Schema tier of the documentation ontology (SF-DOC-SPEC-*). Needs no code
+      # Schema tier of the documentation ontology (KW-DOC-SPEC-*). Needs no code
       # index, so it runs on every documentation change.
       - name: Set up .NET
         uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
@@ -210,7 +210,7 @@ jobs:
 
       - name: Validate documentation frontmatter
         run: >-
-          dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli
+          dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli
           -- docs validate . --format table
 
       - name: Check internal documentation links
@@ -227,7 +227,7 @@ jobs:
             2-Application/local-processing-service/README.md
             2-Application/MotorcycleRAG.Application/Services/Caching/README.md
             7-Deployment/README.md 7-Deployment/DbSetup/README.md
-            7-Deployment/tools/SkillForge/README.md
+            7-Deployment/tools/KyberWeave/README.md
             6-Docs/README.md 6-Docs/catalog.md 6-Docs/documentation-standard.md
             6-Docs/documentation-ontology.md
             6-Docs/system 6-Docs/MotorcycleRAG.API 6-Docs/MotorcycleRAG.AdminDesktop
@@ -235,7 +235,7 @@ jobs:
             6-Docs/MotorcycleRag.WebUI.BFF 6-Docs/operations
             6-Docs/local-processing-service 6-Docs/AzureEnvironment
             6-Docs/DevOps/README.md 6-Docs/DevOps/database-setup.md
-            6-Docs/reference/README.md 6-Docs/reference/skillforge.md
+            6-Docs/reference/README.md 6-Docs/reference/kyber-weave.md
 
       - name: Scan documentation changes for secrets
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
@@ -592,9 +592,9 @@ jobs:
           retention-days: 14
 
   skill-gate:
-    name: SkillForge Skill Gate
+    name: Kyber-Weave Skill Gate
     runs-on: ubuntu-latest
-    continue-on-error: true  # TODO: Remove continue-on-error once all skills pass SkillForge validation
+    continue-on-error: true  # TODO: Remove continue-on-error once all skills pass Kyber-Weave validation
     needs: [changes, build-test, codeql, trivy, semgrep]
     if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
 
@@ -608,56 +608,56 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Build SkillForge
-        run: dotnet build 7-Deployment/tools/SkillForge/src/SkillForge.Cli/SkillForge.Cli.csproj -c Release
+      - name: Build Kyber-Weave
+        run: dotnet build 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/KyberWeave.Cli.csproj -c Release
 
       - name: Validate .agents/skills
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .agents/skills --format table
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .agents/skills --format table
 
       - name: Lint .agents/skills
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .agents/skills --min-desc-score 70 --format table
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .agents/skills --min-desc-score 70 --format table
 
       - name: Scan .agents/skills (SARIF)
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .agents/skills --fail-on critical --format sarif > skillforge-agents.sarif
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .agents/skills --fail-on critical --format sarif > kyber-weave-agents.sarif
 
       - name: Upload .agents/skills SARIF
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
-          sarif_file: skillforge-agents.sarif
-          category: skillforge-agents
+          sarif_file: kyber-weave-agents.sarif
+          category: kyber-weave-agents
 
       - name: Validate .claude/skills
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .claude/skills --format table
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .claude/skills --format table
 
       - name: Lint .claude/skills
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .claude/skills --min-desc-score 70 --format table
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .claude/skills --min-desc-score 70 --format table
 
       - name: Scan .claude/skills (SARIF)
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .claude/skills --fail-on critical --format sarif > skillforge-claude.sarif
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .claude/skills --fail-on critical --format sarif > kyber-weave-claude.sarif
 
       - name: Upload .claude/skills SARIF
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
-          sarif_file: skillforge-claude.sarif
-          category: skillforge-claude
+          sarif_file: kyber-weave-claude.sarif
+          category: kyber-weave-claude
 
       - name: Validate .kilo/skills
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- validate .kilo/skills --format table
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .kilo/skills --format table
 
       - name: Lint .kilo/skills
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- lint .kilo/skills --min-desc-score 70 --format table
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .kilo/skills --min-desc-score 70 --format table
 
       - name: Scan .kilo/skills (SARIF)
-        run: dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli -c Release --no-build -- scan .kilo/skills --fail-on critical --format sarif > skillforge-kilo.sarif
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .kilo/skills --fail-on critical --format sarif > kyber-weave-kilo.sarif
 
       - name: Upload .kilo/skills SARIF
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
         with:
-          sarif_file: skillforge-kilo.sarif
-          category: skillforge-kilo
+          sarif_file: kyber-weave-kilo.sarif
+          category: kyber-weave-kilo
 
   # ─────────────────────────────────────────────────────────────────────
-  # Documentation entity drift (SF-DOC-DRIFT-*)
+  # Documentation entity drift (KW-DOC-DRIFT-*)
   #
   # Runs when code OR docs change: a rename on the code side breaks a
   # documentation reference just as surely as editing the reference does, and
@@ -719,12 +719,12 @@ jobs:
 
       - name: Verify documentation entity drift
         run: >-
-          dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli
+          dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli
           -- docs drift . --format table
 
       - name: Export the documentation graph
         run: >-
-          dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli
+          dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli
           -- docs graph . --out ./build/doc-graph
 
       - name: Upload the documentation graph
@@ -759,7 +759,7 @@ jobs:
           echo "| IaC Security Scan (Checkov) | ${{ needs.iac-scan.result }} |" >> results.md
           echo "| Integration Tests | ${{ needs.integration.result }} |" >> results.md
           echo "| End-to-End Tests | ${{ needs.e2e.result }} |" >> results.md
-          echo "| SkillForge Gate | ${{ needs.skill-gate.result }} |" >> results.md
+          echo "| Kyber-Weave Skill Gate | ${{ needs.skill-gate.result }} |" >> results.md
           echo "" >> results.md
 
           # Fail if any non-skipped required job failed

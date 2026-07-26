@@ -161,7 +161,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 | Schedule | Jobs | Purpose |
 | --- | --- | --- |
 | Daily 02:00 UTC | Test suite (unit, integration, E2E, Azure integration, load, performance, Kyber-Weave skill gate) | Full regression validation |
-| Daily 03:00 UTC | Snyk (SCA+SAST + container) and Trivy container rebuild/scan for API, UI, and Local Processor images | Comprehensive security posture |
+| Daily 03:00 UTC | Trivy container rebuild/scan for API, UI, and Local Processor images | Comprehensive security posture |
 
 **Test jobs (2 AM trigger):**
 
@@ -178,13 +178,6 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 - `iac-scan`: Runs Checkov against Dockerfiles and GitHub Actions workflows for comprehensive scanning regardless of changed files. Results are uploaded as SARIF to GitHub Security. Soft-fail mode (advisory) — findings logged but do not fail the run.
 
-**Snyk security jobs (3 AM trigger):**
-
-- `snyk-sca-sast`: Full Snyk SCA + SAST scan with SARIF upload to GitHub Security.
-- `snyk-container-api`: Builds the API Docker image and runs `snyk container test` with SARIF upload.
-- `snyk-container-ui`: Builds the UI Docker image and runs `snyk container test` with SARIF upload.
-- `snyk-container-processor`: Builds the Local Processor Docker image and runs `snyk container test` with SARIF upload.
-
 **Trivy container scan** (`trivy-container-scan`, 3 AM or `workflow_dispatch`):
 
 - Rebuilds `motorcycle-rag-api` and `motorcycle-rag-ui` from `7-Deployment/Dockerfile.api` / `Dockerfile.ui`, and the local-processor image from its service Dockerfile.
@@ -194,7 +187,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 **API/UI base image package pins:** `Dockerfile.api` and `Dockerfile.ui` explicitly install fixed Ubuntu noble versions of `tar`, `gzip`, and `perl-base` after `apt-get upgrade` so rebuilt images ship the CVE-fixed packages. Registry images refresh only through the deploy path (see §4.3); nightly rebuild/scan alone does not push to ACR.
 
-**Summary** (`test-summary`): Depends on all test, Snyk, and Trivy container-scan jobs, generates a consolidated markdown report.
+**Summary** (`test-summary`): Depends on all test and Trivy container-scan jobs, generates a consolidated markdown report.
 
 ### 4.3 Build & Deploy (`deploy.yml`)
 
@@ -224,7 +217,7 @@ The following individual workflows were replaced by the unified `pr-gate.yml` an
 | `codeql.yml` | `pr-gate.yml` (Phase 2 `codeql` job) + `nightly.yml` (weekly CodeQL fallback schedule) |
 | `comprehensive-testing.yml` | `pr-gate.yml` (Phase 1 `build-test`, Phase 3 `integration`, `e2e`) + `nightly.yml` (full nightly matrix) |
 | `docs.yml` | `pr-gate.yml` (Phase 1 `docs-quality` job) |
-| `snyk.yml` | `nightly.yml` (3 AM SCA+SAST + container scans) |
+| `snyk.yml` | Retired. Container scanning is now `nightly.yml` (3 AM `trivy-container-scan`); dependency and code scanning are covered by Trivy, CodeQL, and Semgrep in `pr-gate.yml`. |
 
 ---
 

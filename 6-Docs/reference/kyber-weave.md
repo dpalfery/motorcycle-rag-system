@@ -19,7 +19,7 @@ The organising idea is that **every artifact that shapes agent behaviour — ski
 
 ## Naming hazard
 
-"Kyber" collides with CRYSTALS-Kyber / ML-KEM, the NIST post-quantum KEM standardised as FIPS 203 and shipped in Apple iMessage. In a repository running Snyk, Trivy, CodeQL and Semgrep, searching or scanning for "kyber" will surface both this tool and cryptographic material. "Weave" is deliberately non-cryptographic — unlike Lattice, Module, Ring or Key, which would read as the algorithm itself.
+"Kyber" collides with CRYSTALS-Kyber / ML-KEM, the NIST post-quantum KEM standardised as FIPS 203 and shipped in Apple iMessage. In a repository running Trivy, CodeQL and Semgrep, searching or scanning for "kyber" will surface both this tool and cryptographic material. "Weave" is deliberately non-cryptographic — unlike Lattice, Module, Ring or Key, which would read as the algorithm itself.
 
 ## Provenance
 

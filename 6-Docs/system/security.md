@@ -55,7 +55,7 @@ The canonical sanitizer:
 2. Preserve printable non-control content in full (reversible escaping; no default truncation).
 3. Leave repository-required PII and query-text redaction unchanged; encoding does not replace redaction.
 
-Do not bulk-dismiss static-analysis logging alerts. If a scanner does not recognize the central provider as a sanitization boundary inside `SanitizingLoggerProvider.Log<TState>`, annotate only that single inner-logger call with the narrowest supported suppression model (e.g. `// snyk-discard`). Per-site or per-method suppression is not acceptable.
+Do not bulk-dismiss static-analysis logging alerts. If a scanner does not recognize the central provider as a sanitization boundary inside `SanitizingLoggerProvider.Log<TState>`, annotate only that single inner-logger call with the narrowest suppression model that scanner supports (for CodeQL, a `// codeql[cs/log-forging]` line annotation; for Semgrep, a `// nosemgrep: <rule-id>` line annotation). Per-site or per-method suppression is not acceptable.
 
 ## Auth & Access
 

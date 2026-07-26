@@ -60,11 +60,35 @@ Delete any of the following from the required checks list (they no longer exist 
 
 Also remove any status checks referencing the deleted per-workflow jobs listed above that GitHub might have auto-suggested from previous runs.
 
-### 4. Repeat for `main`
+### 4. Disconnect the Snyk PR-check integration
+
+Snyk has been retired from this repository. The `snyk.yml` workflow is deleted and no
+workflow job invokes the Snyk CLI, but the **`security/snyk (dpalfery)` commit status**
+is posted directly by Snyk's GitHub integration, not by GitHub Actions. It therefore
+survives workflow deletion and keeps reporting on every pull request — including
+`error: You have used your limit of private tests`, which appears as a failed check.
+
+This status can only be removed from Snyk, not from this repository:
+
+1. Sign in to <https://app.snyk.io> as an admin of the `dpalfery` organization.
+2. Go to **Settings → Integrations → GitHub** and either
+   remove `dpalfery/motorcycle-rag-system` from the imported targets,
+   or disconnect the GitHub integration entirely.
+3. Alternatively, to keep the integration for other repositories, open the project's
+   **Settings → PR checks** and disable *Pull request status checks* (both the
+   "Fail for issues" and "Fail for new licence issues" toggles) so no status is posted.
+4. Confirm no ruleset or classic branch-protection rule still lists `security/snyk (dpalfery)`
+   as a required check (see step 3 above), otherwise pull requests will block on a status
+   that will never be reported again.
+
+Existing pull requests keep the stale status on their current head commit; it clears on
+the next push once the integration is disconnected.
+
+### 5. Repeat for `main`
 
 If the `main` branch has its own protection rule (separate from `develop`), repeat steps 2–3 for it.
 
-### 5. Verify
+### 6. Verify
 
 After saving the updated rules, the next PR to the protected branch should show `pr-gate / PR Gate Summary` as a required check. Older in-flight PRs will show it as "Expected — Waiting for status to be reported" once they are rebased or retriggered.
 
@@ -85,8 +109,6 @@ The `nightly.yml` pipeline runs on schedule and does not block PRs. These check 
 | `nightly / Load Tests` | `load-tests` | NBomber load testing |
 | `nightly / Performance Analysis` | `performance-analysis` | Performance metrics reporting |
 | `nightly / Kyber-Weave Skill Gate` | `skill-gate` | Skill directory validation |
-| `nightly / Snyk SCA + SAST` | `snyk-sca-sast` | Full dependency + code security scan |
-| `nightly / Snyk Container — API` | `snyk-container-api` | API container image scan |
-| `nightly / Snyk Container — UI` | `snyk-container-ui` | UI container image scan |
-| `nightly / Snyk Container — Local Processor` | `snyk-container-processor` | Local Processor container image scan |
+| `nightly / IaC Security Scan (Checkov)` | `iac-scan` | Dockerfile + workflow IaC scan |
+| `nightly / Trivy Container Scan` | `trivy-container-scan` | API and UI container image scans |
 | `nightly / Test Summary` | `test-summary` | Consolidated nightly results report |

@@ -265,7 +265,7 @@ Extend the existing `docs-quality` job in `.github/workflows/pr-gate.yml` rather
 
 1. Keep `validate-docs.sh` for required-file, catalog, and link validation — it already owns those.
 2. Add `skillforge docs validate` immediately after it. No index required; runs on every documentation pull request.
-3. Add a `doc-graph-drift` step gated on code-or-docs changes: restore `.codegraph/` from `actions/cache` keyed on a hash of tracked source files, then `codegraph sync` on a cache hit or `codegraph index` on a miss (`npm i -g @colbymchenry/codegraph`, v1.4.1 today), then `skillforge docs drift`. Caching matters — a cold index is 1,106 files and 96 MB.
+3. Add a `doc-graph-drift` step gated on code-or-docs changes: restore `.codegraph/` from `actions/cache` keyed on a hash of tracked source files, then `codegraph sync .` if `.codegraph/codegraph.db` exists, otherwise `codegraph init .` to initialize and build the index when the cache misses or only the tracked `.codegraph/.gitignore` is present (`npm i -g @colbymchenry/codegraph`, v1.4.1 today), then `skillforge docs drift`. Caching matters — a cold index is 1,106 files and 96 MB.
 4. Upload the Phase 5 export as a build artifact.
 5. Extend the `docs` path filter and add the new step to the job summary aggregation.
 

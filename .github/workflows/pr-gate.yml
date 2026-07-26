@@ -714,7 +714,7 @@ jobs:
           if [ -f .codegraph/codegraph.db ]; then
             codegraph sync .
           else
-            codegraph index .
+            codegraph init .
           fi
 
       - name: Verify documentation entity drift

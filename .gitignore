@@ -448,3 +448,6 @@ device-id
 
 # Kilo Agent Manager worktrees (local git worktrees, never committed)
 .kilo/worktrees/
+
+# Local MCP secrets (never commit)
+.cursor/github-mcp.env

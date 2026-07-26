@@ -1,32 +1,31 @@
 {
   "mcpServers": {
     "codegraph": {
-      "type": "stdio",
       "command": "codegraph",
       "args": [
         "serve",
-        "--mcp"
+        "--mcp",
+        "--path",
+        "${workspaceFolder}"
       ]
     },
     "kyber-weave": {
-      "type": "stdio",
       "command": "dotnet",
       "args": [
         "run",
         "--project",
-        "${workspaceFolder}/7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp",
+        "7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp",
         "-v",
         "q",
         "--",
         "--repo-root",
-        "${workspaceFolder}"
+        "."
       ]
     },
     "context7": {
       "url": "https://mcp.context7.com/mcp"
     },
     "playwright": {
-      "type": "stdio",
       "command": "npx",
       "args": [
         "-y",
@@ -34,17 +33,24 @@
       ]
     },
     "azure-mcp": {
-      "type": "stdio",
-      "command": "npx",
+      "command": "/Users/dave/.local/bin/azmcp",
       "args": [
-        "-y",
-        "@azure/mcp@latest",
         "server",
-        "start"
-      ]
+        "start",
+        "--mode",
+        "namespace",
+        "--read-only"
+      ],
+      "env": {
+        "AZURE_MCP_COLLECT_TELEMETRY": "false"
+      }
     },
     "github": {
-      "url": "https://api.githubcopilot.com/mcp/"
+      "command": "/Users/dave/.local/bin/github-mcp-server",
+      "args": [
+        "stdio"
+      ],
+      "envFile": "${workspaceFolder}/.cursor/github-mcp.env"
     },
     "microsoft-learn": {
       "url": "https://learn.microsoft.com/api/mcp"

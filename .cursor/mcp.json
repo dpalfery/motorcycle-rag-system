@@ -14,16 +14,15 @@
       "args": [
         "run",
         "--project",
-        "7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp",
+        "${workspaceFolder}/7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp",
         "-v",
         "q",
         "--",
         "--repo-root",
-        "."
+        "${workspaceFolder}"
       ]
     },
     "context7": {
-      "type": "http",
       "url": "https://mcp.context7.com/mcp"
     },
     "playwright": {
@@ -45,11 +44,9 @@
       ]
     },
     "github": {
-      "type": "http",
       "url": "https://api.githubcopilot.com/mcp/"
     },
     "microsoft-learn": {
-      "type": "remote",
       "url": "https://learn.microsoft.com/api/mcp"
     }
   }

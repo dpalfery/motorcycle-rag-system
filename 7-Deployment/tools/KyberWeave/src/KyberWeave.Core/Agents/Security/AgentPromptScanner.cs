@@ -30,7 +30,7 @@ public static class AgentPromptScanner
         var secretMatches = SecretRegex.Matches(text);
         foreach (Match match in secretMatches)
         {
-            report.Add(new Diagnostic(RuleHardcodedSecret, Severity.Error,
+            report.Add(new Diagnostic(RuleHardcodedSecret, Severity.Critical,
                 $"Potential hardcoded secret or token detected in agent prompt: '{match.Value[..Math.Min(8, match.Value.Length)]}...'",
                 Path.GetFileName(agent.FilePath), agent.FilePath));
         }

@@ -52,10 +52,18 @@ app.Configure(config =>
         agent.SetDescription("Manage and audit AI coding harness agent definitions (.codex, .cursor, .claude, etc.).");
 
         agent.AddCommand<AgentValidateCommand>("validate")
-            .WithDescription("Validate individual harness agent manifests.");
+            .WithDescription("Validate harness agent manifests discovered as .harness/agents under the project root.")
+            .WithExample("agent", "validate", ".")
+            .WithExample("agent", "validate", ".", "--harness", "cursor");
+
+        agent.AddCommand<AgentScanCommand>("scan")
+            .WithDescription("Scan agent prompts as a trust surface (secrets, safety-bypass directives).")
+            .WithExample("agent", "scan", ".", "--format", "sarif")
+            .WithExample("agent", "scan", ".", "--harness", "claude", "--format", "sarif");
 
         agent.AddCommand<AgentSyncCheckCommand>("sync-check")
-            .WithDescription("Verify role parity and instruction drift across harness folders.");
+            .WithDescription("Verify role parity and instruction drift across harness folders.")
+            .WithExample("agent", "sync-check", ".");
 
         agent.AddCommand<AgentCatalogCommand>("catalog")
             .WithDescription("Display the role x harness governance matrix.");

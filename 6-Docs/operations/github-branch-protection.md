@@ -109,6 +109,8 @@ The `nightly.yml` pipeline runs on schedule and does not block PRs. These check 
 | `nightly / Load Tests` | `load-tests` | NBomber load testing |
 | `nightly / Performance Analysis` | `performance-analysis` | Performance metrics reporting |
 | `nightly / Kyber-Weave Skill Gate` | `skill-gate` | Skill directory validation |
+| `nightly / Kyber-Weave Agent Gate (*)` | `agent-gate` | Parallel per-harness agent validate/scan |
+| `nightly / Kyber-Weave Agent Sync Check` | `agent-sync` | Cross-harness role parity |
 | `nightly / IaC Security Scan (Checkov)` | `iac-scan` | Dockerfile + workflow IaC scan |
 | `nightly / Trivy Container Scan` | `trivy-container-scan` | API and UI container image scans |
 | `nightly / Test Summary` | `test-summary` | Consolidated nightly results report |

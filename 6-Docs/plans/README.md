@@ -1,3 +1,15 @@
+---
+id: plans/index
+title: Plan Index
+doc-type: index
+status: current
+owner: Maintainers
+last-reviewed: 2026-07-26
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Plan Index
 
 This is the authoritative inventory for plans under `6-Docs/plans/`. It lets people retain planning history without making completed work agent noise.
@@ -15,6 +27,7 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 | Plan | Status | Goal |
 | --- | --- | --- |
+| [2026-07-21 Documentation Graph Ontology and Frontmatter Governance](2026-07-21-documentation-graph-ontology.md) | In progress | Give `6-Docs/` a closed ontology in human-readable frontmatter that joins deterministically to CodeGraph node identities, evict non-documentation from the documentation root, and CI-enforce both schema conformance and code-entity drift through Kyber-Weave (named SkillForge when this plan was written). |
 | [2026-07-18 Security and Quality Alert Remediation](2026-07-18-security-quality-remediation.md) | Review required | Local T0–T15 implemented; canonical docs updated. T16 partial: #399 dismissed (`used in tests`); #401 awaits post-merge Semgrep. Not archived: T16/#401, T17 (legacy CodeQL logging volume on develop), and remaining T19 GitHub gates remain open. CodeQL per-language matrix (former T18) was delivered by the archived 2026-07-19 residual plan — do not treat this 2026-07-18 plan as closed by that work. |
 | ~~2026-07-18 Snyk CWE-117 log forging — central provider remediation~~ | Archived | Completed 2026-07-18. SanitizingLoggerProvider + SanitizingLogger in MotorcycleRAG.Core.Logging, registered in all 5 .NET hosts. 126+ per-call LogSanitizer.Sanitize sites decommissioned; BFF SanitizeLogValue helper removed. DbSetup SanitizingLogger<T>/SecureLoggerExtensions deleted. 29 core tests + 8 registration-gate tests passing. Canonical guidance updated in 6-Docs/system/security.md §Log value encoding. |
 
@@ -28,6 +41,8 @@ Completed and superseded plans live in [`../archive/plans/`](../archive/plans/).
 
 | Plan | Archived | Outcome / canonical guidance |
 | --- | --- | --- |
+| [2026-07-26 Clear Trivy HIGH — React Router 8 + Node 22](../archive/plans/2026-07-26-trivy-high-react-router-node22.md) | 2026-07-26 | Verified complete (T1–T11). Both SPAs on `react-router` ≥8.3.0 (no `react-router-dom`), React ≥19.2.7, Node ≥22.22.0; deploy workflow `NODE_VERSION` 22.x; `quinn-proto` 0.11.15; policy pack `@pulumi/pulumi` ≥3.254.0 / `brace-expansion` 5.0.8 with obsolete OTel override removed. Trivy FS HIGH/CRITICAL exit 0; code-review and security-review PASS. Canonical guidance: [Web UI onboarding](../MotorcycleRag.WebUI/onboarding.md) (Node, React Router 8), [Admin Desktop onboarding](../MotorcycleRAG.AdminDesktop/onboarding.md) (Node, React Router 8), [DevOps overview](../DevOps/overview.md) §4.3 (deploy Node 22.x), [catalog](../catalog.md) (last-reviewed 2026-07-26). |
+| [2026-07-21 SkillForge Upstream Augmentation Plan: Multi-Harness Agent & Skill Governance](../archive/plans/2026-07-21-skillforge-agent-governance-augmentation.md) | 2026-07-21 | Verified complete. Added AgentModel, TomlAgentParser, MarkdownAgentParser, AgentLoader, AgentSpecValidator, AgentSyncLinter, AgentPromptScanner, AgentRoutingEvaluator, AgentValidateCommand, AgentSyncCheckCommand, AgentCatalogCommand. 25 unit tests passing. Canonical guidance: `6-Docs/reference/kyber-weave.md`, `7-Deployment/tools/KyberWeave/README.md` (both renamed from SkillForge by the 2026-07-21 Kyber-Weave Phase 1 plan). |
 | [2026-07-19 Local processor outbound HTTP / SSRF hardening](../archive/plans/2026-07-19-local-processor-outbound-http-ssrf.md) | 2026-07-19 | Verified complete (T1–T8). Multi-address connect fallback in `_SafeTransport` / `_SafeAsyncTransport`; unified OpenAI-compatible model-provider traffic on `create_model_provider_*_client`; Ollama O1 construct-time validation with documented SDK residual. Contract tests: `test_safe_http.py`, `test_openai_embedder_http_policy.py`, `test_ollama_embedder_http_policy.py`, `test_extraction_http_policy.py`. Code review APPROVED; security-review APPROVED. Canonical guidance: `6-Docs/system/security.md` §Communication (Local processor outbound HTTP), `6-Docs/local-processing-service/architecture.md` §Outbound HTTP policy, `onboarding.md` §Local model endpoint URLs. **Residual:** Ollama mid-flight DNS/redirects; `ApiClientExtended` plain httpx out of scope. |
 | [2026-07-19 CodeQL and Trivy Residual Alert Remediation](../archive/plans/2026-07-19-codeql-trivy-residual-remediation.md) | 2026-07-19 | Verified complete for T1–T8 + T11–T12 (implementation, scoped reviews, docs). Path/SSRF/SQL hardening, CodeQL per-language matrix + log-sanitizer model packs, Dockerfile `tar`/`gzip`/`perl-base` pins, nightly api/ui Trivy MEDIUM. Code review APPROVED (log-test waiver); security-review APPROVED. Canonical guidance: `6-Docs/DevOps/overview.md` §4.1–4.2, `6-Docs/system/security.md`, catalog last-reviewed 2026-07-19. **Residual operator follow-ups:** T9 post-merge CodeQL/Trivy rescan + narrow #405 dismiss if needed; T10 ACR republish only with explicit approval (D6). Does not close 2026-07-18 security-quality plan. |
 | [2026-07-19 Local processor start failure](../archive/plans/2026-07-19-local-processor-start-failure.md) | 2026-07-19 | Verified complete (T1–T4). LazyEmbedder defers discovery off import; `check_status` → disconnected on failure; Admin Desktop `processor_start` pipes bounded redacted stderr on start failure. Reviews: T1/T2/T3 APPROVED; T4 security-review PASS (control token / upload secret / Bearer / secret-shaped redaction). Canonical guidance: `6-Docs/local-processing-service/local-processor.md` (listen vs healthy, start-failure diagnostics, log path), `onboarding.md` (lazy init + exit status 1 troubleshooting), `architecture.md` (LazyEmbedder), `catalog.md` (reviewed 2026-07-19). Out of scope residual: TypeScript `processorIsReady` / healthy-vs-degraded UX (D4). |
@@ -48,7 +63,7 @@ Completed and superseded plans live in [`../archive/plans/`](../archive/plans/).
 | [2026-07-10 Pipeline logging and graph batching](../archive/plans/2026-07-10-pipeline-logging-and-graph-batching.md) | 2026-07-11 | Verified complete; see local-processing-service documentation. |
 | [2026-07-11 Deployment secrets table](../archive/plans/2026-07-11-issue-109-deployment-secrets-table.md) | 2026-07-11 | Proposal (Draft); historical only. |
 | [2026-07-11 Validate-docs ripgrep remediation](../archive/plans/2026-07-11-validate-docs-ripgrep-remediation.md) | 2026-07-11 | Proposal (Draft); historical only. |
-| [2026-07-11 Unified PR pipeline](../archive/plans/2026-07-11-unified-pr-pipeline.md) | 2026-07-11 | Implementation complete; see `6-Docs/DevOps/overview.md` §4 (CI/CD Flow) and `6-Docs/agent-notes/branch-protection-update.md` for operational guidance. |
+| [2026-07-11 Unified PR pipeline](../archive/plans/2026-07-11-unified-pr-pipeline.md) | 2026-07-11 | Implementation complete; see `6-Docs/DevOps/overview.md` §4 (CI/CD Flow) and `6-Docs/operations/github-branch-protection.md` for operational guidance. |
 | [2026-07-12 Checkov + CrossGuard IaC scanning](../archive/plans/2026-07-12-checkov-crossguard-iac-scanning.md) | 2026-07-12 | Verified complete; see `6-Docs/DevOps/overview.md` §4 (CI/CD Flow), `7-Deployment/scanning/README.md`, and `7-Deployment/infrastructure/AGENTS.md` for scanning tool documentation. |
 | [2026-07-12 Python tests to 5-Test](../archive/plans/2026-07-12-issue-118-python-tests-to-5-test.md) | 2026-07-12 | Verified complete (issue #118); see `6-Docs/rules/architecture-general.md` 5-Test Layer section, `5-Test/local-processing-service.Tests/AGENTS.md`, and `2-Application/local-processing-service/AGENTS.md` for the new test-suite location. |
 | [2026-07-12 Persistence test coverage 46.92% to 90%+](../archive/plans/2026-07-12-persistence-test-coverage.md) | 2026-07-13 | Verified complete; 1,430 tests created under `5-Test/MotorcycleRAG.Persistence.Tests/`, 95.87% aggregate coverage, 0 Persistence files below 85%. See `6-Docs/rules/architecture-general.md` §5-Test Layer, `6-Docs/catalog.md`, and `6-Docs/DevOps/overview.md` §4.1 (`persistence-unit` suite). |

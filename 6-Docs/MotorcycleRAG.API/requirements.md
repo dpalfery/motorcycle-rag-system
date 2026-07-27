@@ -1,3 +1,16 @@
+---
+id: api/requirements
+title: MotorcycleRAG API Requirements
+doc-type: requirements
+status: current
+component: MotorcycleRAG API
+owner: API maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG API Requirements
 
 ## Introduction

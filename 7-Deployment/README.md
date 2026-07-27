@@ -6,7 +6,7 @@
 
 - `infrastructure/` — declarative Pulumi infrastructure source.
 - `DbSetup/` — local development database setup CLI.
-- `tools/SkillForge/` — vendored .NET skill-validation tool.
+- `tools/KyberWeave/` — the Kyber-Weave governance toolkit (skills, agent definitions, documentation) and its MCP server.
 
 ## Operating model
 

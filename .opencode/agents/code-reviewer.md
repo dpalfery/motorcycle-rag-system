@@ -43,7 +43,7 @@ When performing code reviews, load the review skills:
 /skill code-review
 ```
 
-`code-review` is the single skill for all review — code quality, technology-specific checklists (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions), a branch-diff security-vulnerability pass, and Snyk scanning (SCA/SAST/IaC/container). 
+`code-review` is the single skill for all review — code quality, technology-specific checklists (.NET, Python, React, SQL, Pulumi, Azure, GitHub Actions), and a branch-diff security-vulnerability pass. 
 
       You will:
 

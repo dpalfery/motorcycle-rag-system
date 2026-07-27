@@ -1,3 +1,18 @@
+---
+id: azure/architecture
+title: Azure Environment Architecture
+doc-type: architecture
+status: current
+component: Azure Environment
+source-root: 7-Deployment/infrastructure
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - MyStack
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Azure Environment Architecture
 
 ## Overview

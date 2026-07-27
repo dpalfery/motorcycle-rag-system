@@ -1,0 +1,45 @@
+name: motorcycle-rag-system
+version: 1.0.0
+description: APM project for motorcycle-rag-system
+author: dpalfery
+
+# Harness targets. The repository maintains agent definitions for six development
+# tools and requires them to stay behaviourally synchronized; see the agent
+# configuration synchronization rule in the root AGENTS.md.
+targets:
+  - copilot
+  - claude
+  - codex
+  - cursor
+  - opencode
+
+# ---------------------------------------------------------------------------
+# DO NOT RUN `apm install` UNTIL THE UPSTREAM PACKAGE IS REFRESHED.
+#
+# As of 2026-07-21 dpalfery/dpalfery-agent-package is a stale snapshot of this
+# repository's agent roster:
+#   - it carries 11 agents; this repository maintains 17
+#   - four of its agents (orchestrator, design-architect, task-planner,
+#     requirements-author) are deliberately retired here and live in
+#     6-Docs/archive/
+#   - frontend-dev was renamed react-dev
+#   - shared roles are roughly half the size of the current definitions
+#     (dotnet-dev: 3.6K upstream vs 6.6K here)
+#
+# Installing would overwrite governed harness files under .claude/, .codex/,
+# .cursor/, .github/, and .opencode/ with stale content and resurrect the four
+# retired roles. The dependency is declared so the structure is in place; the
+# install step is blocked until upstream is brought up to date with this
+# repository's current agents.
+# ---------------------------------------------------------------------------
+dependencies:
+  apm:
+    - dpalfery/dpalfery-agent-package
+  # MCP servers are declared in the repository's own harness configuration, not
+  # installed through APM. The upstream package declares an `azure` server whose
+  # command is an absolute path to a machine-local VS Code extension, which must
+  # not become repository configuration. Install APM dependencies only:
+  #   apm install --only apm
+  mcp: []
+includes: auto
+scripts: {}

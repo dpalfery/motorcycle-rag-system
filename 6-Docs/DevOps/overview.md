@@ -1,3 +1,15 @@
+---
+id: devops/overview
+title: Deployment Configuration
+doc-type: reference
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-26
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Deployment Configuration
 
 This project uses **Pulumi** for Infrastructure-as-Code and **GitHub Actions** for the CI/CD pipeline.
@@ -134,13 +146,13 @@ flowchart LR
 
 - `integration`: Runs integration tests (non-Azure, `Category!=AzureIntegration`) on the pre-built output from Phase 1.
 - `e2e`: Runs end-to-end tests with a MockServer container for external service stubs, using pre-built output.
-- `skill-gate`: Builds the SkillForge CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
+- `skill-gate`: Builds the Kyber-Weave CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
 
 **Gate summary** (`pr-gate-summary`)
 
 - Single required check that depends on all Phase 1–3 jobs.
 - Evaluates results, generates a markdown table, and posts/updates a comment on the PR with the pass/fail status.
-- Branch protection should require `pr-gate / PR Gate Summary` as the sole mandatory check (see [branch protection update](../agent-notes/branch-protection-update.md)).
+- Branch protection should require `pr-gate / PR Gate Summary` as the sole mandatory check (see [GitHub branch protection](../operations/github-branch-protection.md)).
 
 ### 4.2 Nightly Tests & Security Scans (`nightly.yml`)
 
@@ -148,8 +160,8 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 | Schedule | Jobs | Purpose |
 | --- | --- | --- |
-| Daily 02:00 UTC | Test suite (unit, integration, E2E, Azure integration, load, performance, SkillForge) | Full regression validation |
-| Daily 03:00 UTC | Snyk (SCA+SAST + container) and Trivy container rebuild/scan for API, UI, and Local Processor images | Comprehensive security posture |
+| Daily 02:00 UTC | Test suite (unit, integration, E2E, Azure integration, load, performance, Kyber-Weave skill gate) | Full regression validation |
+| Daily 03:00 UTC | Trivy container rebuild/scan for API, UI, and Local Processor images | Comprehensive security posture |
 
 **Test jobs (2 AM trigger):**
 
@@ -160,18 +172,11 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 - `azure-integration-tests`: Tests against real Azure services (requires `environment: testing`). Only runs on schedule or when `run_integration_tests` input is `true`.
 - `load-tests`: NBomber-based load tests (3 min duration, 20 concurrent users in CI). Only runs on schedule or when `run_load_tests` input is `true`.
 - `performance-analysis`: Generates a performance report from E2E and load test results.
-- `skill-gate`: Same SkillForge validation as the PR gate, but runs after unit tests (not blocking deployment).
+- `skill-gate`: Same Kyber-Weave validation as the PR gate, but runs after unit tests (not blocking deployment).
 
 **IaC security scan (runs on all triggers, 2 AM + 3 AM):**
 
 - `iac-scan`: Runs Checkov against Dockerfiles and GitHub Actions workflows for comprehensive scanning regardless of changed files. Results are uploaded as SARIF to GitHub Security. Soft-fail mode (advisory) — findings logged but do not fail the run.
-
-**Snyk security jobs (3 AM trigger):**
-
-- `snyk-sca-sast`: Full Snyk SCA + SAST scan with SARIF upload to GitHub Security.
-- `snyk-container-api`: Builds the API Docker image and runs `snyk container test` with SARIF upload.
-- `snyk-container-ui`: Builds the UI Docker image and runs `snyk container test` with SARIF upload.
-- `snyk-container-processor`: Builds the Local Processor Docker image and runs `snyk container test` with SARIF upload.
 
 **Trivy container scan** (`trivy-container-scan`, 3 AM or `workflow_dispatch`):
 
@@ -182,13 +187,13 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 **API/UI base image package pins:** `Dockerfile.api` and `Dockerfile.ui` explicitly install fixed Ubuntu noble versions of `tar`, `gzip`, and `perl-base` after `apt-get upgrade` so rebuilt images ship the CVE-fixed packages. Registry images refresh only through the deploy path (see §4.3); nightly rebuild/scan alone does not push to ACR.
 
-**Summary** (`test-summary`): Depends on all test, Snyk, and Trivy container-scan jobs, generates a consolidated markdown report.
+**Summary** (`test-summary`): Depends on all test and Trivy container-scan jobs, generates a consolidated markdown report.
 
 ### 4.3 Build & Deploy (`deploy.yml`)
 
 Unchanged. Runs on push to `main` or `develop`:
 
-1. Builds the React UI and copies assets to the BFF's `wwwroot`.
+1. Builds the React UI on Node.js 22.x (`NODE_VERSION: "22.x"` in `deploy.yml`, matching SPA `engines.node` ≥22.22.0) and copies assets to the BFF's `wwwroot`.
 2. Azure login with OIDC (service principal).
 3. CrossGuard policy scan: Builds the TypeScript policy pack (`7-Deployment/scanning/policy-packs/azure/`) and runs `pulumi preview --policy-pack` as an advisory scan. Scan results are informational and never block deployment (`continue-on-error: true`).
 4. `pulumi up` against the `dev` stack: creates/updates the Azure Resource Group, Container Registry, Container App Environment, and all supporting resources.
@@ -212,7 +217,7 @@ The following individual workflows were replaced by the unified `pr-gate.yml` an
 | `codeql.yml` | `pr-gate.yml` (Phase 2 `codeql` job) + `nightly.yml` (weekly CodeQL fallback schedule) |
 | `comprehensive-testing.yml` | `pr-gate.yml` (Phase 1 `build-test`, Phase 3 `integration`, `e2e`) + `nightly.yml` (full nightly matrix) |
 | `docs.yml` | `pr-gate.yml` (Phase 1 `docs-quality` job) |
-| `snyk.yml` | `nightly.yml` (3 AM SCA+SAST + container scans) |
+| `snyk.yml` | Retired. Container scanning is now `nightly.yml` (3 AM `trivy-container-scan`); dependency and code scanning are covered by Trivy, CodeQL, and Semgrep in `pr-gate.yml`. |
 
 ---
 

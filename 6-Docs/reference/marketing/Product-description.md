@@ -1,1 +1,13 @@
+---
+id: reference/product-description
+title: reference/product-description
+doc-type: reference
+status: current
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 Moto Oracle is a high-performance, multi-agent AI platform designed to be the definitive source of truth for the modern rider. By orchestrating a sophisticated RAG pipeline on Azure, it transforms fragmented data—from technical service manuals to real-time travel intel—into actionable insights. Whether you’re hitting the apex on an R1M or navigating a group tour, Moto Oracle is the invisible, all-knowing pillion rider ensuring every technical spec and every mile is accounted for.

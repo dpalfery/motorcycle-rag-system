@@ -1,3 +1,17 @@
+---
+id: api/onboarding
+title: MotorcycleRAG API Developer Onboarding
+doc-type: onboarding
+status: current
+component: MotorcycleRAG API
+source-root: 1-Presentation/MotorcycleRAG.API
+owner: API maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG API Developer Onboarding
 
 ## Prerequisites

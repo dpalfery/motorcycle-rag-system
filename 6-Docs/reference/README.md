@@ -1,8 +1,20 @@
+---
+id: reference/index
+title: Technical Reference
+doc-type: index
+status: current
+owner: Maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Technical Reference
 
 This area holds reusable, non-operational technical reference. Component-specific behavior remains in the owning application documentation folder.
 
-- [SkillForge provenance and use](skillforge.md)
+- [Kyber-Weave: the agent and documentation governance framework](kyber-weave.md)
 - [Architecture placement rules](../rules/architecture-general.md)
 - [Azure naming standards](azure-naming-standards.md)
 - [Environment variables](environment-variables.md)

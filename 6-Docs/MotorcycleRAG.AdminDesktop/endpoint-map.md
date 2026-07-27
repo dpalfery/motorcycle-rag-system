@@ -1,3 +1,16 @@
+---
+id: admin-desktop/endpoint-map
+title: Admin Desktop — Screen → Endpoint Map
+doc-type: reference
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Admin Desktop — Screen → Endpoint Map
 
 | Screen | Client | Key endpoints |

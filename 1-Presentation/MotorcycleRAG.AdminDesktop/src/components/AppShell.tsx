@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router";
 import { Cpu, Globe, Wrench, Users, Settings, Bike, LogOut, User } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { ComponentType } from "react";

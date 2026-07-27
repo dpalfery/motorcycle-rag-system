@@ -1,3 +1,16 @@
+---
+id: webui/requirements
+title: MotorcycleRAG Web UI Requirements
+doc-type: requirements
+status: current
+component: MotorcycleRAG Web UI
+owner: Web UI maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Web UI Requirements
 
 ## Introduction

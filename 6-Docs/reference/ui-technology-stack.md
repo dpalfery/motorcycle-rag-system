@@ -1,3 +1,15 @@
+---
+id: reference/ui-technology-stack
+title: UI Technology Stack
+doc-type: reference
+status: current
+owner: Web UI maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # UI Technology Stack
 
 

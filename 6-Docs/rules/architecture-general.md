@@ -1,3 +1,15 @@
+---
+id: rules/architecture-general
+title: "Clean Architecture + DDD Folder Structure (C#)"
+doc-type: rule
+status: current
+owner: Architecture maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 name: "Folder-Rule"
 description: "Enforces Clean Architecture principles following Uncle Bob's Dependency Rule: source code dependencies only point inward, ensuring separation of concerns and testability across all technology stacks."
 when-to-apply:

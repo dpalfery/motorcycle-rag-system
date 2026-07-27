@@ -1,3 +1,15 @@
+---
+id: reference/azure-naming-standards
+title: Azure Naming Standards
+doc-type: reference
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Azure Naming Standards
 
 > **Source:** [Microsoft Cloud Adoption Framework – Landing Zone Naming convention](https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/design-area/naming)

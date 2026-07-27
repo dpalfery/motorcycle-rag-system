@@ -1,3 +1,15 @@
+---
+id: devops/developer-setup-standard
+title: Developer Machine Setup Standard
+doc-type: reference
+status: current
+owner: Developer-experience maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Developer Machine Setup Standard
 
 This is the canonical standard for bootstrapping a brand-new Windows or macOS machine into a working MotorcycleRAG development machine: the required tooling, install approach, safety guardrails, and validation criteria. The `.agents/skills/setup-dev-environment` skill follows this standard when running an interactive setup session; it is registered as **Developer Setup Standard** in the root [AGENTS.md](../../AGENTS.md) Repository Configuration & Paths registry so other skills and agents can find it without depending on that skill directly.

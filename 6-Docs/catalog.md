@@ -1,3 +1,15 @@
+---
+id: system/catalog
+title: MotorcycleRAG Component Catalog
+doc-type: index
+status: current
+owner: Maintainers
+last-reviewed: 2026-07-26
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Component Catalog
 
 This catalog defines the maintained documentation surface. `Current` means the README and canonical documentation are maintained together; `Needs review` identifies content that is present but requires source verification before substantive changes.
@@ -6,9 +18,10 @@ This catalog defines the maintained documentation surface. `Current` means the R
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | MotorcycleRAG system | System | repository root | [README](../README.md) | [system](system/) | Maintainers | 2026-07-19 | Current |
 | MotorcycleRAG API | Application | `1-Presentation/MotorcycleRAG.API` | [README](../1-Presentation/MotorcycleRAG.API/README.md) | [API docs](MotorcycleRAG.API/) | API maintainers | 2026-07-13 | Current |
-| MotorcycleRAG Admin Desktop | Application | `1-Presentation/MotorcycleRAG.AdminDesktop` | [README](../1-Presentation/MotorcycleRAG.AdminDesktop/README.md) | [Admin docs](MotorcycleRAG.AdminDesktop/) | Admin Desktop maintainers | 2026-07-19 | Current |
+| MotorcycleRAG Admin Desktop | Application | `1-Presentation/MotorcycleRAG.AdminDesktop` | [README](../1-Presentation/MotorcycleRAG.AdminDesktop/README.md) | [Admin docs](MotorcycleRAG.AdminDesktop/) | Admin Desktop maintainers | 2026-07-26 | Current |
 | MotorcycleRAG Mobile App | Application | `1-Presentation/MotorcycleRAG.MobileApp` | [README](../1-Presentation/MotorcycleRAG.MobileApp/README.md) | [Mobile docs](MotorcycleRAG.MobileApp/) | Mobile maintainers | 2026-07-13 | Current |
-| MotorcycleRAG Web UI and BFF | Application pair | `1-Presentation/MotorcycleRag.WebUI`, `1-Presentation/MotorcycleRag.WebUI.BFF` | [README](../1-Presentation/MotorcycleRag.WebUI/README.md) | [Web UI docs](MotorcycleRag.WebUI/) | Web UI maintainers | 2026-07-13 | Current |
+| MotorcycleRAG Web UI | Application | `1-Presentation/MotorcycleRag.WebUI` | [README](../1-Presentation/MotorcycleRag.WebUI/README.md) | [Web UI docs](MotorcycleRag.WebUI/) | Web UI maintainers | 2026-07-26 | Current |
+| MotorcycleRAG Web UI BFF | Application | `1-Presentation/MotorcycleRag.WebUI.BFF` | [README](../1-Presentation/MotorcycleRag.WebUI.BFF/README.md) | [BFF docs](MotorcycleRag.WebUI.BFF/) | Web UI maintainers | 2026-07-21 | Current |
 | Local Processing Service | Service | `2-Application/local-processing-service` | [README](../2-Application/local-processing-service/README.md) | [Processor docs](local-processing-service/) | Ingestion maintainers | 2026-07-19 | Current |
 | Core, Application, Domain, and Persistence | Architecture layers | `0-Base` through `4-Persistence` | [root README](../README.md) | [architecture rules](rules/architecture-general.md) | Architecture maintainers | 2026-07-18 | Current |
 | Test suites | Verification | `5-Test` | [root README](../README.md) | [architecture rules](rules/architecture-general.md) | Test maintainers | 2026-07-13 | Current |
@@ -16,7 +29,7 @@ This catalog defines the maintained documentation surface. `Current` means the R
 | Azure Environment | Deployment environment | `7-Deployment/infrastructure` | [README](../7-Deployment/README.md) | [Azure Environment docs](AzureEnvironment/) | Platform maintainers | 2026-07-11 | Current |
 | IaC Security Scanning | Tooling suite | `7-Deployment/scanning` | [README](../7-Deployment/scanning/README.md) | [DevOps overview](DevOps/overview.md) | Platform maintainers | 2026-07-19 | Current |
 | Database Setup CLI | CLI tool | `7-Deployment/DbSetup` | [README](../7-Deployment/DbSetup/README.md) | [database setup reference](DevOps/database-setup.md), [schema deployment strategy](DevOps/database-schema.md) | Platform maintainers | 2026-07-18 | Current |
-| SkillForge | Vendored tool | `7-Deployment/tools/SkillForge` | [README](../7-Deployment/tools/SkillForge/README.md) | [SkillForge reference](reference/skillforge.md) | Developer-experience maintainers | 2026-07-11 | Current |
+| Kyber-Weave | Tooling suite | `7-Deployment/tools/KyberWeave` | [README](../7-Deployment/tools/KyberWeave/README.md) | [Kyber-Weave reference](reference/kyber-weave.md) | Developer-experience maintainers | 2026-07-21 | Current |
 | Caching services | Shared library | `2-Application/MotorcycleRAG.Application/Services/Caching` | [README](../2-Application/MotorcycleRAG.Application/Services/Caching/README.md) | [architecture rules](rules/architecture-general.md) | Application maintainers | 2026-07-11 | Current |
 
 ## Catalog maintenance

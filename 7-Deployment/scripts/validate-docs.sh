@@ -19,10 +19,12 @@ required_files=(
   "1-Presentation/MotorcycleRAG.AdminDesktop/README.md"
   "1-Presentation/MotorcycleRAG.MobileApp/README.md"
   "1-Presentation/MotorcycleRag.WebUI/README.md"
+  "1-Presentation/MotorcycleRag.WebUI.BFF/README.md"
+  "6-Docs/documentation-ontology.md"
   "2-Application/local-processing-service/README.md"
   "7-Deployment/README.md"
   "7-Deployment/DbSetup/README.md"
-  "7-Deployment/tools/SkillForge/README.md"
+  "7-Deployment/tools/KyberWeave/README.md"
   "CODEOWNERS"
 )
 
@@ -80,11 +82,12 @@ components=(
   "MotorcycleRAG API"
   "MotorcycleRAG Admin Desktop"
   "MotorcycleRAG Mobile App"
-  "MotorcycleRAG Web UI and BFF"
+  "MotorcycleRAG Web UI"
+  "MotorcycleRAG Web UI BFF"
   "Local Processing Service"
   "Azure Environment"
   "Database Setup CLI"
-  "SkillForge"
+  "Kyber-Weave"
 )
 
 for component in "${components[@]}"; do
@@ -99,6 +102,7 @@ application_docs=(
   "6-Docs/MotorcycleRAG.AdminDesktop"
   "6-Docs/MotorcycleRAG.MobileApp"
   "6-Docs/MotorcycleRag.WebUI"
+  "6-Docs/MotorcycleRag.WebUI.BFF"
   "6-Docs/local-processing-service"
   "6-Docs/AzureEnvironment"
 )
@@ -125,7 +129,7 @@ canonical_markdown=(
   "6-Docs/DevOps/README.md"
   "6-Docs/DevOps/database-setup.md"
   "6-Docs/reference/README.md"
-  "6-Docs/reference/skillforge.md"
+  "6-Docs/reference/kyber-weave.md"
   "2-Application/MotorcycleRAG.Application/Services/Caching/README.md"
 )
 

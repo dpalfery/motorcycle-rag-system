@@ -1,3 +1,16 @@
+---
+id: azure/agent-access
+title: Azure Environment
+doc-type: governance
+status: current
+component: Azure Environment
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Azure Environment
 
 ## Development Environment

@@ -1,3 +1,21 @@
+---
+id: admin-desktop/architecture
+title: MotorcycleRAG Admin Desktop Architecture
+doc-type: architecture
+status: current
+component: MotorcycleRAG Admin Desktop
+source-root: 1-Presentation/MotorcycleRAG.AdminDesktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - ProcessorTransport
+  - processor_start
+  - processor_request
+  - queue_local_ingestion_work_item
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Admin Desktop Architecture
 
 ## Overview

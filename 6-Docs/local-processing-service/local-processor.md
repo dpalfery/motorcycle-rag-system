@@ -1,3 +1,16 @@
+---
+id: local-processor/reference
+title: Local Processing Service — Admin Desktop Integration
+doc-type: reference
+status: current
+component: Local Processing Service
+owner: Ingestion maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Local Processing Service — Admin Desktop Integration
 
 This document defines the Admin Desktop integration boundary for the Local Processing Service. For service ownership, lifecycle, and processing behavior, also read the [service architecture](architecture.md). System-wide trust rules are in [security directives](../system/security.md).

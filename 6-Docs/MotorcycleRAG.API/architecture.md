@@ -1,3 +1,19 @@
+---
+id: api/architecture
+title: MotorcycleRAG API Architecture
+doc-type: architecture
+status: current
+component: MotorcycleRAG API
+source-root: 1-Presentation/MotorcycleRAG.API
+owner: API maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - Program
+  - ProblemDetails
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG API Architecture
 
 ## Overview

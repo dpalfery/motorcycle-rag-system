@@ -46,7 +46,7 @@
 
 - [ ] This change contains no credentials, tokens, connection strings, passwords, customer data, or `.env` files.
 - [ ] I documented any new configuration, deployment, or operational impact in the relevant `6-Docs/` documentation.
-- [ ] I have reviewed the Snyk and CodeQL findings (if any) and addressed or annotated HIGH/CRITICAL items.
+- [ ] I have reviewed the CodeQL, Trivy, Semgrep, and Checkov findings (if any) and addressed or annotated HIGH/CRITICAL items.
 
 ---
 

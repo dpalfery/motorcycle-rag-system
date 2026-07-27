@@ -1,3 +1,23 @@
+---
+id: mobile/architecture
+title: MotorcycleRAG Mobile App Architecture
+doc-type: architecture
+status: current
+component: MotorcycleRAG Mobile App
+source-root: 1-Presentation/MotorcycleRAG.MobileApp
+owner: Mobile maintainers
+last-reviewed: 2026-07-21
+code-refs:
+  - App
+  - AppShell
+  - IApiClient
+  - IAuthenticationService
+  - IConversationService
+  - ChatMessage
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Mobile App Architecture
 
 ## Overview

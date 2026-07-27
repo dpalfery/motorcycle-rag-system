@@ -124,19 +124,21 @@ The PR Gate workflow (`.github/workflows/pr-gate.yml`) runs automatically on eve
 | Build & unit | `build-test` | Code or infra changes | Runs all unit test suites (Linux) |
 | Docs quality | `docs-quality` | Documentation changes | Markdown lint, link check, catalog validation, secret scan |
 | Security | `codeql` | Code or infra changes | CodeQL C# analysis with `security-extended` queries |
-| Security | `snyk` | Code or infra changes | Snyk SCA and SAST scans |
+| Security | `trivy` | Code or infra changes | Trivy OSS dependency and filesystem scan |
+| Security | `semgrep` | Code or infra changes | Semgrep Community SAST |
+| Security | `iac-scan` | Code or infra changes | Checkov scan of Dockerfiles and workflows |
 | Deep validation | `unit-mobile` | Code or infra changes | MAUI unit tests on macOS |
 | Deep validation | `integration` | Code or infra changes | Integration tests (non-Azure category) |
 | Deep validation | `e2e` | Code or infra changes | End-to-end tests with mock services |
-| Skill quality | `skill-gate` | Code or infra changes | SkillForge validate + lint + scan |
+| Skill quality | `skill-gate` | Code or infra changes | Kyber-Weave skill validate + lint + scan |
 
 ### Handling check failures
 
 1. **Build-test failure:** Inspect the build log. Common causes: missing dependency restore, broken test, or a build error introduced by the change.
 2. **Docs-quality failure:** Run `npx markdownlint-cli2` locally. Fix any broken links (check with `lychee --offline`). Run `bash 7-Deployment/scripts/validate-docs.sh` to verify catalog coverage.
-3. **Security failure (CodeQL/Snyk):** Review the SARIF output in the GitHub Security tab. Address HIGH or CRITICAL findings. If a finding is a false positive, annotate it in the PR with a brief explanation referencing the relevant SARIF rule.
+3. **Security failure (CodeQL/Trivy/Semgrep/Checkov):** Review the SARIF output in the GitHub Security tab. Address HIGH or CRITICAL findings. If a finding is a false positive, annotate it in the PR with a brief explanation referencing the relevant SARIF rule.
 4. **Integration/E2E failure:** Check the test log for the failing test name. Reproduce locally with `dotnet test --filter "FullyQualifiedName=<test-name>"`.
-5. **Skill-gate failure:** Run SkillForge commands locally: use `dotnet run --project 7-Deployment/tools/SkillForge/src/SkillForge.Cli` with the `validate`, `lint`, or `scan` subcommands on `.agents/skills/`. Fix any validation errors or HIGH+ severity findings.
+5. **Skill-gate failure:** Run Kyber-Weave commands locally: use `dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli` with the `skill validate`, `skill lint`, or `skill scan` subcommands on `.agents/skills/`. Fix any validation errors or HIGH+ severity findings.
 
 If a check is consistently failing due to an environment issue (not your change), add a PR comment documenting the failure and tag a maintainer.
 
@@ -145,7 +147,7 @@ If a check is consistently failing due to an environment issue (not your change)
 ### Who reviews
 
 - **Code review:** The `code-reviewer` agent (or a human reviewer) performs a structured review covering correctness, security, performance, maintainability, and architecture compliance.
-- **Security review:** The code-reviewer includes a branch-diff security vulnerability pass. Snyk scans run automatically in CI.
+- **Security review:** The code-reviewer includes a branch-diff security vulnerability pass. CodeQL, Trivy, Semgrep, and Checkov scans run automatically in CI.
 - **Plan closeout review:** For plan-backed work, the `docs-dev` agent verifies the plan's acceptance criteria against the implementation and updates canonical documentation before the plan is archived.
 
 ### What reviewers check
@@ -192,7 +194,7 @@ The PR is not the final step for plan-backed work — documentation verification
 | PR targets `main` but should target `develop` | Update the base branch in the PR before merging |
 | Template section left blank or as placeholder | Fill it out — reviewers will request changes |
 | Docs-quality check fails on link validation | Run `lychee --offline` against the changed `.md` files |
-| Snyk reports a vulnerability in an indirect dependency | Update the dependency or add a `.snyk` policy exemption with a justification |
+| Trivy reports a vulnerability in an indirect dependency | Update the dependency, or add a pinned transitive override in the owning project file with a justification comment |
 | `dotnet build` succeeds locally but fails in CI | Check for platform-specific code, missing SDK workloads, or environment variable assumptions |
 | No issue linked in the PR description | Find or create the tracking issue and add `Closes #n` to the description |
 

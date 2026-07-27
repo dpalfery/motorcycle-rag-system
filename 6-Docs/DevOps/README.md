@@ -1,3 +1,15 @@
+---
+id: devops/index
+title: DevOps Documentation
+doc-type: index
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # DevOps Documentation
 
 DevOps documentation covers the CI/CD pipelines, deployment configuration, and how reviewed source reaches an environment. Runtime diagnosis and recovery procedures belong in [operations](../operations/).

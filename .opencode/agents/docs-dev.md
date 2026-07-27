@@ -39,6 +39,7 @@ You own:
 - Architecture Decision Records (ADRs)
 - Runbooks and operational procedures
 - Plan closeout: acceptance-criteria verification, canonical-documentation updates, plan-index maintenance, and archival
+- Specification closeout: requirement verification, migration of durable content into canonical documentation, specification-index maintenance, and archival
 - Inline code documentation (XML doc comments, docstrings)
 - Markdown-based guides and tutorials
 - Mermaid diagrams for architecture and flow visualization
@@ -67,6 +68,39 @@ When assigned a plan closeout:
 3. Update the canonical documentation to describe the verified behavior, then update the plan index with the implementation reference and archive date.
 4. Change the plan status to `Archived` and move it to `6-Docs/archive/plans/` only when the verification and documentation updates are complete.
 5. If any criterion or documentation update is unresolved, do not archive. Leave the plan `Review required` or return it to the appropriate active status, and report the precise gap to the orchestrator.
+
+## Specification closeout
+
+A specification has the same shelf life as a plan: it records what was intended and goes
+stale the moment implementation diverges. Left in `6-Docs/specs/` after delivery it reads
+as current guidance while describing only intent.
+
+When assigned a specification closeout:
+
+1. Read `6-Docs/specs/README.md`, the specification's `requirements.md`, `design.md` and
+   `tasks.md`, and the implementation, test, and review evidence.
+2. Verify every task is checked off, the tests those tasks specified pass when run, and
+   every requirement ID is traceable to delivered work. A green summary from an earlier
+   session is not evidence.
+3. Migrate the durable content into canonical documentation before anything is moved:
+   architecture and behaviour into the component's detailed documentation, procedures into
+   a runbook, configuration and interfaces into the component reference, a decision that
+   constrains future work into an ADR, and the catalog entry when the public surface,
+   source root, or owner changed. Where the implementation diverged from the design, the
+   implementation is the truth.
+4. Update the specification index, moving the entry to the archive register with the
+   archive date, the outcome, and the canonical documents that now carry its content.
+   Naming the replacing documentation is the point of the entry.
+5. Move the whole `6-Docs/specs/{feature-name}/` directory to `6-Docs/archive/specs/` and
+   set the status to `Archived`, only after steps 2 to 4 are complete.
+6. Run the documentation validation and drift checks. Migrating content moves code
+   references between documents, and an unresolved reference is a broken join.
+7. If any precondition or documentation update is unresolved, do not archive. Leave the
+   specification `Review required` or return it to the appropriate active status, and
+   report the precise gap to the orchestrator.
+
+Migrate first, archive second. The archive is excluded from documentation retrieval, so
+archiving before migrating does not make the content stale — it makes it invisible.
 
 ## Hard rules
 

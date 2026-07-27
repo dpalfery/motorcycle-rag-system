@@ -1,3 +1,16 @@
+---
+id: admin-desktop/api-client
+title: Admin Desktop — Cloud API Client
+doc-type: reference
+status: current
+component: MotorcycleRAG Admin Desktop
+owner: Admin Desktop maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # Admin Desktop — Cloud API Client
 
 Two axios instances sharing the same interceptor (base URL from `useConfig` + Bearer token from `useAuth`):

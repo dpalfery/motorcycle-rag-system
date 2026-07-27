@@ -76,6 +76,12 @@ Handle the returned digest:
 
 Once the tasks are approved, stop. This flow produces planning artifacts only — do not begin implementation. Tell the user the spec is complete and that they can begin executing tasks by opening `6-Docs/specs/{feature_name}/tasks.md` and starting the first task.
 
+Register the specification in `6-Docs/specs/README.md` with status `Ready` before you stop. A specification absent from the index is invisible to every agent that follows the rule to read the index first.
+
+## 5. Shelf life
+
+A specification records what was *intended*, so it goes stale the moment implementation diverges from it — exactly like a plan, and it is never canonical guidance. The final task in every list you author is therefore a `docs-dev` closeout task: verify the requirements against implementation evidence, migrate the durable content into canonical documentation, update the specification index, then archive `6-Docs/specs/{feature_name}/` to `6-Docs/archive/specs/`. A delivered specification left in the active directory reads as current guidance while describing only intent.
+
 ## Invariants
 - Never proceed past a gate without explicit user approval.
 - You may only write or edit files under `6-Docs/specs/**`. Never write to application code, infrastructure, tests, CI/CD, or any directory outside `6-Docs/specs/`.

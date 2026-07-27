@@ -1,3 +1,17 @@
+---
+id: mobile/onboarding
+title: MotorcycleRAG Mobile App Developer Onboarding
+doc-type: onboarding
+status: current
+component: MotorcycleRAG Mobile App
+source-root: 1-Presentation/MotorcycleRAG.MobileApp
+owner: Mobile maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Mobile App Developer Onboarding
 
 ## Prerequisites

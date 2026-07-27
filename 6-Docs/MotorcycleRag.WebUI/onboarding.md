@@ -1,8 +1,23 @@
+---
+id: webui/onboarding
+title: MotorcycleRAG Web UI Developer Onboarding
+doc-type: onboarding
+status: current
+component: MotorcycleRAG Web UI
+source-root: 1-Presentation/MotorcycleRag.WebUI
+owner: Web UI maintainers
+last-reviewed: 2026-07-26
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # MotorcycleRAG Web UI Developer Onboarding
 
 ## Prerequisites
 
-- Node.js and npm compatible with `package-lock.json`.
+- Node.js ≥22.22.0 and npm (required by `engines.node` in `package.json`).
+- React Router 8: declare and import routing APIs from `react-router` (not `react-router-dom`).
 - .NET 10 SDK for `MotorcycleRag.WebUI.BFF`.
 - A configured MotorcycleRAG API destination and Entra/CIAM application settings for the BFF.
 - HTTPS development trust configured for ASP.NET Core when using the BFF locally.

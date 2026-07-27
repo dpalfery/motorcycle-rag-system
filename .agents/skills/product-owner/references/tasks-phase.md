@@ -33,6 +33,20 @@ A numbered checkbox list, **maximum two levels** of hierarchy, decimal notation 
   - _Requirements: 2.1, 3.3_
 ```
 
+## The final task is always closeout
+
+Every task list SHALL end with a closeout task, numbered last and depending on all the others:
+
+```markdown
+- [ ] N. Specification closeout
+  - Assign to `docs-dev`. Verify every requirement against implementation evidence,
+    migrate the specification's durable content into canonical documentation, update
+    the specification index, then archive `{feature_name}/`.
+  - _Requirements: all_
+```
+
+This is the one exception to "coding tasks only", and it is deliberate. Without it a delivered specification stays in the active directory reading as current guidance when it describes only intent, and the durable content is never written anywhere that survives. The closeout task is what makes the specification's own retirement someone's job. See [Closeout Phase](./closeout-phase.md).
+
 ## Coding tasks only — hard exclusions
 Include **only** tasks a coding agent can execute by writing, modifying, or testing code. Each task must specify what to create/modify and be concrete enough to execute without further clarification. End-to-end flows are validated via automated tests, not by running the app manually.
 

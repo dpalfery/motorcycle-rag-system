@@ -1,3 +1,15 @@
+---
+id: reference/entra-setup
+title: 📘 DOCUMENT 2
+doc-type: reference
+status: current
+owner: Platform maintainers
+last-reviewed: 2026-07-21
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
 # 📘 DOCUMENT 2  
 # Microsoft Entra App Registration Design & Setup
 

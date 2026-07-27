@@ -8,7 +8,7 @@ const { useAuth } = vi.hoisted(() => ({
 
 vi.mock("./contexts/useAuth", () => ({ useAuth }));
 vi.mock("./layouts/MainLayout", async () => {
-  const { Outlet } = await import("react-router-dom");
+  const { Outlet } = await import("react-router");
   return { default: () => <><div>Main layout</div><Outlet /></> };
 });
 vi.mock("./pages/ChatPage", () => ({ default: () => <div>Chat page</div> }));

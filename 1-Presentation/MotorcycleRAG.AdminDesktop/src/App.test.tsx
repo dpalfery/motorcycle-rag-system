@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import App from "./App";
 
 const { authState } = vi.hoisted(() => ({
@@ -9,7 +9,7 @@ const { authState } = vi.hoisted(() => ({
 
 vi.mock("@/lib/auth", () => ({ useAuth: () => authState }));
 vi.mock("./components/AppShell", async () => {
-  const { Outlet } = await import("react-router-dom");
+  const { Outlet } = await import("react-router");
   return { default: () => <><div>App shell</div><Outlet /></> };
 });
 vi.mock("./screens/SignInScreen", () => ({ default: () => <div>Sign-in screen</div> }));

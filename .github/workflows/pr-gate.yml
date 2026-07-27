@@ -691,10 +691,10 @@ jobs:
       - name: Compute source tree hash
         id: srchash
         run: |
-          HASH=$(git ls-files \
+          HASH=$(git ls-files -z \
             '0-Base/**' '1-Presentation/**' '2-Application/**' \
             '3-Domain/**' '4-Persistence/**' '7-Deployment/**' \
-            | sort | xargs -r sha1sum | sha1sum | cut -d' ' -f1)
+            | sort -z | xargs -0 -r sha1sum | sha1sum | cut -d' ' -f1)
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
 
       - name: Restore CodeGraph index

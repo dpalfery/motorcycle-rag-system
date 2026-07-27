@@ -5,7 +5,7 @@ doc-type: reference
 status: current
 component: Kyber-Weave
 owner: Developer-experience maintainers
-last-reviewed: 2026-07-21
+last-reviewed: 2026-07-27
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -34,12 +34,14 @@ Treat skills and coding harness agent definitions (`.codex`, `.cursor`, `.claude
 Three symmetric branches, one per artifact class.
 
 - **Skills**: `kyber-weave skill validate|lint|scan|route|catalog|pack|new`.
-- **Agents**: `kyber-weave agent validate|sync-check|catalog`.
+- **Agents**: `kyber-weave agent validate|scan|sync-check|catalog`.
 - **Documentation**: `kyber-weave docs validate|drift|graph|catalog`.
 
 All three share one diagnostic model, rule-code convention, and renderer, so `--format table | json | sarif | markdown` behaves identically across them. The renderer's subject column is caller-supplied, so each branch labels it correctly — `Skill`, `Agent`, `Document` — and JSON emits `subject`.
 
-`agent scan`, `agent route`, `agent lint` and `agent new` have Core classes but no CLI verb. This is a known gap.
+Agent commands take a **project root**. Harness trees are discovered by convention as every `.harnessname/agents` directory under that root (`.codex`, `.cursor`, `.claude`, `.github`, `.opencode`, `.kilo`, and any other `.*` folder that has an `agents` child). Optional `--harness <name>` filters to one harness for parallel CI. `agent sync-check` always compares across all discovered harnesses.
+
+`agent route`, `agent lint` and `agent new` have Core classes but no CLI verb. This is a known gap.
 
 ## Rule codes
 
@@ -162,4 +164,4 @@ The rule names the fallback explicitly because neither tool has a CLI equivalent
 
 ## Deferred
 
-Config-driven ontology (a `kyber-weave.yml` replacing the `DocType` enum, required-key matrix, exclusion lists and catalog column positions); a pluggable code-graph backend; `agent_explore` and `skill_explore`; wiring the four unwired agent subcommands; moving the framework to its own repository; publishing as a `dotnet tool` or NuGet package.
+Config-driven ontology (a `kyber-weave.yml` replacing the `DocType` enum, required-key matrix, exclusion lists and catalog column positions); a pluggable code-graph backend; `agent_explore` and `skill_explore`; wiring the remaining unwired agent subcommands (`route`, `lint`, `new`); moving the framework to its own repository; publishing as a `dotnet tool` or NuGet package.

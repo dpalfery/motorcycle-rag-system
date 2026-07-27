@@ -147,6 +147,8 @@ flowchart LR
 - `integration`: Runs integration tests (non-Azure, `Category!=AzureIntegration`) on the pre-built output from Phase 1.
 - `e2e`: Runs end-to-end tests with a MockServer container for external service stubs, using pre-built output.
 - `skill-gate`: Builds the Kyber-Weave CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
+- `agent-gate`: Matrix over the six harnesses (`codex`, `cursor`, `claude`, `github`, `opencode`, `kilo`). Each leg runs `agent validate . --harness <name>` and `agent scan . --harness <name>` against the project root (harness trees discovered as `.harnessname/agents`), uploading SARIF under a unique category `kyber-weave-agent-<harness>`. Currently uses `continue-on-error: true`.
+- `agent-sync`: Runs `agent sync-check .` once across all discovered harnesses (role parity and instruction drift). Currently uses `continue-on-error: true`.
 
 **Gate summary** (`pr-gate-summary`)
 
@@ -172,7 +174,8 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 - `azure-integration-tests`: Tests against real Azure services (requires `environment: testing`). Only runs on schedule or when `run_integration_tests` input is `true`.
 - `load-tests`: NBomber-based load tests (3 min duration, 20 concurrent users in CI). Only runs on schedule or when `run_load_tests` input is `true`.
 - `performance-analysis`: Generates a performance report from E2E and load test results.
-- `skill-gate`: Same Kyber-Weave validation as the PR gate, but runs after unit tests (not blocking deployment).
+- `skill-gate`: Same Kyber-Weave skill validation as the PR gate, but runs after unit tests (not blocking deployment).
+- `agent-gate` / `agent-sync`: Same Kyber-Weave agent validate/scan matrix and sync-check as the PR gate.
 
 **IaC security scan (runs on all triggers, 2 AM + 3 AM):**
 

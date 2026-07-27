@@ -112,6 +112,45 @@ public class AgentGovernanceTests
 
         var report = AgentPromptScanner.Scan(agent);
         Assert.Contains(report.Items, i => i.Code == AgentPromptScanner.RuleHardcodedSecret);
+        Assert.Contains(report.Items, i => i.Code == AgentPromptScanner.RuleHardcodedSecret && i.Severity == Severity.Critical);
+    }
+
+    [Fact]
+    public void AgentLoader_Discovers_DotHarness_Agents_By_Convention()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "kw-agent-loader-" + Guid.NewGuid().ToString("N"));
+        var cursorAgents = Path.Combine(root, ".cursor", "agents");
+        Directory.CreateDirectory(cursorAgents);
+        File.WriteAllText(Path.Combine(cursorAgents, "architect.agent.md"), """
+            ---
+            name: architect
+            description: Plans implementations.
+            ---
+            Plan first.
+            """);
+
+        try
+        {
+            var discovered = AgentLoader.DiscoverHarnessAgentDirs(root);
+            Assert.Contains(discovered, d => d.Kind == HarnessKind.Cursor);
+
+            var all = AgentLoader.LoadAll(root);
+            Assert.Single(all.Agents);
+            Assert.Equal("architect", all.Agents[0].RoleName);
+            Assert.Equal(HarnessKind.Cursor, all.Agents[0].Harness);
+
+            var filtered = AgentLoader.LoadAll(root, HarnessKind.Claude);
+            Assert.Empty(filtered.Agents);
+
+            Assert.True(AgentLoader.TryParseHarnessFilter("cursor", out var kind, out var error));
+            Assert.Equal(HarnessKind.Cursor, kind);
+            Assert.Null(error);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]

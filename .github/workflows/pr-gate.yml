@@ -656,6 +656,65 @@ jobs:
           sarif_file: kyber-weave-kilo.sarif
           category: kyber-weave-kilo
 
+  agent-gate:
+    name: Kyber-Weave Agent Gate (${{ matrix.harness }})
+    runs-on: ubuntu-latest
+    continue-on-error: true  # TODO: Remove continue-on-error once all agents pass Kyber-Weave validation
+    needs: [changes, build-test, codeql, trivy, semgrep]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        harness: [codex, cursor, claude, github, opencode, kilo]
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          submodules: true
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build Kyber-Weave
+        run: dotnet build 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/KyberWeave.Cli.csproj -c Release
+
+      - name: Validate agents (${{ matrix.harness }})
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- agent validate . --harness ${{ matrix.harness }} --format table
+
+      - name: Scan agents SARIF (${{ matrix.harness }})
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- agent scan . --harness ${{ matrix.harness }} --fail-on critical --format sarif > kyber-weave-agent-${{ matrix.harness }}.sarif
+
+      - name: Upload agents SARIF (${{ matrix.harness }})
+        uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
+        with:
+          sarif_file: kyber-weave-agent-${{ matrix.harness }}.sarif
+          category: kyber-weave-agent-${{ matrix.harness }}
+
+  agent-sync:
+    name: Kyber-Weave Agent Sync Check
+    runs-on: ubuntu-latest
+    continue-on-error: true  # TODO: Remove continue-on-error once sync-check is clean
+    needs: [changes, build-test, codeql, trivy, semgrep]
+    if: needs.changes.outputs.code == 'true' || needs.changes.outputs.infra == 'true'
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          submodules: true
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build Kyber-Weave
+        run: dotnet build 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/KyberWeave.Cli.csproj -c Release
+
+      - name: Cross-harness sync-check
+        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- agent sync-check . --format table
+
   # ─────────────────────────────────────────────────────────────────────
   # Documentation entity drift (KW-DOC-DRIFT-*)
   #
@@ -742,7 +801,7 @@ jobs:
   pr-gate-summary:
     name: PR Gate Summary
     runs-on: ubuntu-latest
-    needs: [build-test, docs-quality, doc-graph-drift, codeql, trivy, semgrep, iac-scan, integration, e2e, skill-gate]
+    needs: [build-test, docs-quality, doc-graph-drift, codeql, trivy, semgrep, iac-scan, integration, e2e, skill-gate, agent-gate, agent-sync]
     if: always()
 
     steps:
@@ -762,6 +821,8 @@ jobs:
           echo "| Integration Tests | ${{ needs.integration.result }} |" >> results.md
           echo "| End-to-End Tests | ${{ needs.e2e.result }} |" >> results.md
           echo "| Kyber-Weave Skill Gate | ${{ needs.skill-gate.result }} |" >> results.md
+          echo "| Kyber-Weave Agent Gate | ${{ needs.agent-gate.result }} |" >> results.md
+          echo "| Kyber-Weave Agent Sync | ${{ needs.agent-sync.result }} |" >> results.md
           echo "" >> results.md
 
           # Fail if any non-skipped required job failed

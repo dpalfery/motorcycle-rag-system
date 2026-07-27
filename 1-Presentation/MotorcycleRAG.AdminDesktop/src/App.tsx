@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router";
 import { useAuth } from "@/lib/auth";
 import AppShell from "./components/AppShell";
 import SignInScreen from "./screens/SignInScreen";

@@ -6,7 +6,7 @@ status: current
 component: MotorcycleRAG Admin Desktop
 source-root: 1-Presentation/MotorcycleRAG.AdminDesktop
 owner: Admin Desktop maintainers
-last-reviewed: 2026-07-21
+last-reviewed: 2026-07-26
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -17,7 +17,8 @@ supersedes: []
 ## Prerequisites
 
 - A supported Tauri 2 development environment for the target operating system, including the Rust toolchain (`rustup` and `cargo`) and the platform-native build prerequisites described in the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
-- Node.js and npm compatible with the checked-in lockfile.
+- Node.js ≥22.22.0 and npm (required by `engines.node` in `package.json`).
+- React Router 8: declare and import routing APIs from `react-router` (not `react-router-dom`).
 - Python environment for `2-Application/local-processing-service`, including its project dependencies. The desktop host starts that service with its `.venv` interpreter when present, otherwise `python3` or `python`.
 - A reachable embedding endpoint and model. The default development endpoint is LM Studio at `http://localhost:1234/v1` with model `qwen3-embedding`.
 - A tokenizer model path for PDF ingestion. A running embedding endpoint alone is insufficient for PDF processing.

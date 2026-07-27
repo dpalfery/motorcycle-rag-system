@@ -4,7 +4,7 @@ title: Deployment Configuration
 doc-type: reference
 status: current
 owner: Platform maintainers
-last-reviewed: 2026-07-21
+last-reviewed: 2026-07-26
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -193,7 +193,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 
 Unchanged. Runs on push to `main` or `develop`:
 
-1. Builds the React UI and copies assets to the BFF's `wwwroot`.
+1. Builds the React UI on Node.js 22.x (`NODE_VERSION: "22.x"` in `deploy.yml`, matching SPA `engines.node` ≥22.22.0) and copies assets to the BFF's `wwwroot`.
 2. Azure login with OIDC (service principal).
 3. CrossGuard policy scan: Builds the TypeScript policy pack (`7-Deployment/scanning/policy-packs/azure/`) and runs `pulumi preview --policy-pack` as an advisory scan. Scan results are informational and never block deployment (`continue-on-error: true`).
 4. `pulumi up` against the `dev` stack: creates/updates the Azure Resource Group, Container Registry, Container App Environment, and all supporting resources.

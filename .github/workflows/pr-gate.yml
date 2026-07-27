@@ -707,10 +707,12 @@ jobs:
             codegraph-${{ runner.os }}-
 
       - name: Install CodeGraph
-        run: npm install -g @colbymchenry/codegraph
+        working-directory: 7-Deployment/tools/codegraph
+        run: npm ci
 
       - name: Build or sync the index
         run: |
+          export PATH="${GITHUB_WORKSPACE}/7-Deployment/tools/codegraph/node_modules/.bin:${PATH}"
           if [ -f .codegraph/codegraph.db ]; then
             codegraph sync .
           else

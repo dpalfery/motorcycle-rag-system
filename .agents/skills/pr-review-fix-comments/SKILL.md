@@ -1,12 +1,40 @@
 ---
 name: pr-review-fix-comments
-description: Prompt workflow for addressing Azure DevOps PR review comments. Start with a status-only inventory of review threads, then stop and wait for permission before analyzing any single comment.
+description: Prompt workflow for addressing pull request review comments on Azure DevOps or GitHub. Start with a status-only inventory of review threads, then stop and wait for permission before analyzing any single comment.
 
 ---
 
 # Code Review Remediation
 
-Structured workflow for addressing Azure DevOps PR review comments with user approval at each step.
+Structured workflow for addressing PR review comments with user approval at each step.
+Provider-agnostic: all host-specific tool names, thread identity, and status mapping live in the
+provider sub-file selected below.
+
+## Provider Selection
+
+Resolve the provider before Phase 1, in this order:
+
+1. Explicit provider in `$ARGUMENTS` (`github` / `gh` / `azdo` / `ado` / `azure-devops`).
+2. Remote URL of the current git repo:
+   - contains `dev.azure.com` or `visualstudio.com` -> Azure DevOps
+   - contains `github.com` -> GitHub
+3. Only one of the two provider MCP servers is connected -> that provider.
+4. Otherwise ask the user which provider and stop.
+
+Then read the matching sub-file and use only its tools:
+
+| Provider | Sub-file |
+|---|---|
+| Azure DevOps | `providers/azure-devops.md` |
+| GitHub | `providers/github.md` |
+
+Rules:
+- Read exactly one provider sub-file per run. Do not mix tools across providers.
+- Everywhere this file says `<provider tool: ...>`, use the tool named for that step in the sub-file.
+- Use local `git` only for local source-control work (diff, commit, push), for either provider.
+- If a named provider tool cannot supply required data, say exactly what is missing and stop.
+  Do not fall back to CLI, `curl`, handwritten REST, or custom scripts unless the sub-file
+  explicitly allows fallback for that exact step.
 
 ## Workflow
 
@@ -57,46 +85,25 @@ Forbidden transitions:
 - `code review` skipped entirely
 - switching to a new thread while the current thread has incomplete `todo` items
 
-### Azure DevOps MCP Tool Map
-Use Azure DevOps MCP tools for Azure DevOps operations. Do not write ad hoc shell, Python, or REST-call scripts for any step that is covered by an MCP tool below.
-
-Tool selection rules:
-- Prefer the named MCP tool for the step you are in.
-- If a named MCP tool can perform the action, do not fall back to Azure CLI, `az repos`, `curl`, handwritten REST requests, or custom scripts.
-- Use local `git` only for local source-control work such as diff, commit, and push.
-- If required Azure DevOps data cannot be obtained from the named MCP tool, say exactly what is missing and stop or ask the user. Do not invent an alternate script path unless the prompt explicitly allows fallback for that exact step.
-
-Step-to-tool mapping:
-- Project or repo discovery when missing from context: use `mcp_azuredevops_m_core_list_projects` and `mcp_azuredevops_m_repo_repository`.
-- Read PR metadata for the supplied PR number: use `mcp_azuredevops_m_repo_pull_request`.
-- List PR review threads for inventory: use `mcp_azuredevops_m_repo_pull_request_thread`.
-- Read one specific PR review thread in Phase 2: use `mcp_azuredevops_m_repo_pull_request_thread` for that thread only.
-- Post a reply to an existing PR review thread: use `mcp_azuredevops_m_repo_pull_request_thread_write`.
-- Update PR-level metadata only if required by the workflow: use `mcp_azuredevops_m_repo_pull_request_write`.
-- Search for related commits in Azure DevOps only if needed for review context: use `mcp_azuredevops_m_repo_search_commits`.
-
-Do not use these as substitutes for thread operations:
-- Do not use `mcp_azuredevops_m_wit_*` tools for PR review comments.
-- Do not use `mcp_azuredevops_m_wiki*` tools for PR review comments.
-- Do not use `mcp_azuredevops_m_repo_file` to emulate thread reads or replies.
-
 ### Phase 1: Inventory Only
 For the selected PR, do these steps in order:
 1. Read and acknowledge the root `AGENTS.md` file.
-2. Read the PR number from `$ARGUMENTS`.
-3. If the PR number is missing, ask for it and stop.
-4. Fetch the PR and all review comment threads from Azure DevOps.
-5. List every discovered review thread using the exact inventory format below.
-6. Select the thread with the lowest numeric thread ID whose status is `unanswered` or `needs review`.
-7. Do not select threads classified as `automated/system`; they are informational and non-actionable for remediation.
-8. If no thread has status `unanswered` or `needs review`, but one or more threads are classified as `automated/system`, report that only non-actionable automated system messages remain and stop.
-9. If no thread has status `unanswered` or `needs review`, and the remaining thread metadata is still insufficient to choose a thread, ask the user to pick one from the inventory.
-10. Stop immediately.
+2. Resolve the provider and read its sub-file (see Provider Selection).
+3. Read the PR number from `$ARGUMENTS`.
+4. If the PR number is missing, ask for it and stop.
+5. Fetch the PR and all review comment threads from the provider.
+6. List every discovered review thread using the exact inventory format below.
+7. Select the thread with the lowest numeric thread ID whose status is `unanswered` or `needs review`.
+8. Do not select threads classified as `automated/system`; they are informational and non-actionable for remediation.
+9. If no thread has status `unanswered` or `needs review`, but one or more threads are classified as `automated/system`, report that only non-actionable automated system messages remain and stop.
+10. If no thread has status `unanswered` or `needs review`, and the remaining thread metadata is still insufficient to choose a thread, ask the user to pick one from the inventory.
+11. Stop immediately.
 
 Phase 1 tool usage:
-- For step 4, use `mcp_azuredevops_m_repo_pull_request` to read the PR and `mcp_azuredevops_m_repo_pull_request_thread` to fetch all review threads.
-- If project or repository identity is missing, use `mcp_azuredevops_m_core_list_projects` and `mcp_azuredevops_m_repo_repository` before asking the user.
-- Do not use scripts, CLI wrappers, or REST calls for inventory if these MCP tools are available.
+- For step 5, use `<provider tool: read PR metadata>` and `<provider tool: list all review threads>`.
+- If project or repository identity is missing, use `<provider tool: project / repo discovery>` before asking the user.
+- Thread identity, grouping, and numeric ID definition come from the provider sub-file.
+- Do not use scripts, CLI wrappers, or REST calls for inventory when these tools are available.
 
 Inventory format:
 - Thread <id>: <status> | last responder: <us/them/none> | response present: <yes/no>
@@ -106,12 +113,13 @@ Status definitions:
 - responded: the latest reply is from us and the thread still needs no further action
 - unanswered: no reply from us yet
 - needs review: the thread has a response from us but is not resolved
-- automated/system: an Azure DevOps-generated informational notification, such as a branch reference update, that is visible in the thread list but is not a remediation comment
+- automated/system: a provider- or bot-generated informational notification that is visible in the thread list but is not a remediation comment
 - unknown: the thread status cannot be determined from metadata alone
 
+The provider sub-file defines how each status is detected for that host.
 
 Inventory rules:
-- Classify Azure DevOps automated system notifications as `automated/system` when thread metadata indicates a system-generated entry. If metadata alone is insufficient, you may use obvious informational notification text only for this classification step, such as `The reference refs/heads/fix/pipeline-cleanup was updated.`
+- Classify automated system notifications as `automated/system` using the signals listed in the provider sub-file. Prefer thread metadata; use notification text only for this classification step.
 - Treat `automated/system` threads as informational only: include them in the inventory, but ignore them during remediation thread selection.
 - Do not analyze comment content.
 - Do not infer priority, severity, or fixability.
@@ -120,7 +128,7 @@ Inventory rules:
 - Do not mention anything except the inventory fields.
 
 ### Key Insights
-- Ignore Azure DevOps automated system messages, including branch reference update notifications, during remediation selection.
+- Ignore automated system messages during remediation selection.
 - If a thread is already resolved, fixed, or otherwise clearly addressed in the current PR state, report it as already addressed and do not treat it as actionable by default.
 - Do not begin work on the next comment until the current comment is fully completed and acknowledged.
 - Reply to the existing thread rather than creating a new top-level comment.
@@ -141,7 +149,7 @@ Only after permission is granted for one specific thread:
 6. Initialize the `todo` tool with the workflow checklist and keep it updated as you progress.
 
 Phase 2 tool usage:
-- For step 1, use `mcp_azuredevops_m_repo_pull_request_thread` to read only the selected thread.
+- For step 1, use `<provider tool: read one thread>` for the selected thread only.
 - Do not fetch or analyze other threads once a thread is active.
 
 ## User Input
@@ -150,14 +158,15 @@ Phase 2 tool usage:
 $ARGUMENTS
 ```
 
-The user should provide an Azure DevOps pull request number in `$ARGUMENTS`.
+The user should provide a pull request number in `$ARGUMENTS`, optionally preceded by a provider
+(`github <number>` or `azdo <number>`). If no provider is given, resolve it per Provider Selection.
 
 Do not read beyond Phase 1 until the permission question has been answered.
 
 If the PR contains multiple actionable comments, do not batch them together. Complete the full workflow for one comment, then move to the next comment after the current comment is resolved.
 
 ### 1. Review & Analyze
-- Read only the selected review comment from the Azure DevOps PR thread for the provided PR number
+- Read only the selected review comment from the PR thread for the provided PR number
 - Check whether the selected thread is already resolved or whether the concern has already been addressed in the PR
 - Determine if it's still an issue
 - Provide a short summary of the selected comment
@@ -209,18 +218,18 @@ Which option would you like?
 - note the commit hash so you can use it in the comment response
 
 ### 4.5 Push Changes
-- Push to the PR branch in Azure Repos so the fix is included in the PR before responding
-- Use local `git push` for this step. Do not replace a normal push with an Azure DevOps script.
+- Push to the PR branch so the fix is included in the PR before responding
+- Use local `git push` for this step. Do not replace a normal push with a provider script.
 
 ### 5. Propose Response
 - Draft a one-line comment response
-- Format: "Fixed: <brief description>" or "Resolved: <brief description>" must include the commit hash and an Azure DevOps commit link so it is easy for reviewer to find the changes
+- Format: "Fixed: <brief description>" or "Resolved: <brief description>" must include the commit hash and a commit link in the provider's link format so it is easy for the reviewer to find the changes
 - **Get user approval for the comment**
 
 ### 6. Post Response
 - Find the original comment thread on the PR and respond to it with the response
-- Use `mcp_azuredevops_m_repo_pull_request_thread_write` to reply to the existing PR comment thread
-- If Azure DevOps MCP is unavailable, use the Azure DevOps CLI or REST API equivalent to post the reply
+- Use `<provider tool: reply to a thread>` to reply to the existing PR comment thread
+- Optionally mark the thread resolved with `<provider tool: resolve a thread>`, only after the user approves
 - The reply should reference the commit hash and link from the pushed change
 - After the reply is posted, return to the inventory and move to the next unresolved comment only then
 - Once the reply is posted, ensure all `todo` items for the thread are marked complete before returning to the inventory.

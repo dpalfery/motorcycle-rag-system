@@ -1,7 +1,7 @@
 ---
 name: pr-review-fix-and-respond
-description: Prompt workflow for addressing Azure DevOps PR review comments. Start with a status-only inventory of review threads, then stop and wait for permission before analyzing any single comment.
-tools: ['ado-remote-mcp/*', 'todo', 'execute', 'read', 'edit', 'search', 'web', 'agent', 'web/*', ]
+description: Prompt workflow for addressing PR review comments. Start with a status-only inventory of review threads, then stop and wait for permission before analyzing any single comment.
+
 ---
 
 # Code Review Remediation

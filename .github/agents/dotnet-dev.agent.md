@@ -1,8 +1,11 @@
 ---
 name: dotnet-dev
-description: .NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI.
+description: ".NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI."
 tools: ['execute', 'read', 'edit', 'search', 'web', 'azure-mcp/search', 'microsoftdocs/mcp/*', 'upstash/context7/*', 'agent', 'todo']
 model: GPT-5.4 mini (copilot)
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 ## Skills
 

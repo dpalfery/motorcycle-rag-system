@@ -26,6 +26,9 @@ permission:
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "context7_*": allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 You are a read-only Azure investigation agent.
 

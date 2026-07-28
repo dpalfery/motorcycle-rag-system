@@ -3,6 +3,9 @@ name: test-dev
 description: Authors and maintains the automated test suite — unit, integration, and end-to-end — for .NET (xUnit), Python (pytest), and frontend (Vitest/Playwright). Use whenever tests need to be written or updated. Does not implement application logic; only tests it.
 tools: ['execute', 'read', 'edit', 'search', 'web', 'azure-mcp/search', 'microsoftdocs/mcp/*', 'upstash/context7/*', 'agent', 'todo']
 model: GPT-5.4 mini (copilot)
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Test Developer
 

@@ -1,5 +1,5 @@
 ---
-description: SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations.
+description: "SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations."
 mode: subagent
 permission:
   external_directory: deny
@@ -21,6 +21,9 @@ permission:
   todoread: allow
   todowrite: allow
   doom_loop: allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # SQL Database Architect
 

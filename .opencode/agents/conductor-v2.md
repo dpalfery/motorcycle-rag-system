@@ -25,6 +25,9 @@ permission:
   todowrite: allow
   websearch: deny
   webfetch: deny
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 # Role

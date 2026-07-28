@@ -3,6 +3,9 @@ name: test-dev
 description: Authors and maintains the automated test suite — unit, integration, and end-to-end — for .NET (xUnit), Python (pytest), and frontend (Vitest/Playwright). Use whenever tests need to be written or updated. Does not implement application logic; only tests it.
 model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Test Developer
 

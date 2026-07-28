@@ -23,6 +23,9 @@ permission:
   todoread: allow
   todowrite: allow
   doom_loop: allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 You are a frontend development specialist focusing on web applications, UI/UX implementation, and client-side architecture.

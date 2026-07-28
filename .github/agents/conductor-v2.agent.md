@@ -1,8 +1,11 @@
 ---
 name: conductor-v2
-description: Primary orchestrator: classifies each request, routes it to the appropriate specialized agent, tracks dependencies, and consolidates results. Use as the default entry point for multi-step or multi-domain work. Performs no technical work itself — no investigation, design, implementation, review, or testing.
+description: "Primary orchestrator: classifies each request, routes it to the appropriate specialized agent, tracks dependencies, and consolidates results. Use as the default entry point for multi-step or multi-domain work. Performs no technical work itself — no investigation, design, implementation, review, or testing."
 tools: ['read', 'search', 'agent', 'todo']
 model: GPT-5.4 mini (copilot)
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Role
 

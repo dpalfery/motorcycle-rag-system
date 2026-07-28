@@ -1,8 +1,11 @@
 ---
 name: product-owner
-description: Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement.
+description: "Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement."
 model: sonnet
-tools: Read, Write, Edit, Glob, Grep, skill, web_search, task: research-agent
+tools: Read, Write, Edit, Glob, Grep, skill, web_search, "task: research-agent"
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 # Product Owner

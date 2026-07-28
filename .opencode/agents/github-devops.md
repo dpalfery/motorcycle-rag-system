@@ -25,6 +25,9 @@ permission:
   "azure-mcp_*": allow
   "context7_*": allow
   "github_*": allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 # GitHub DevOps Agent

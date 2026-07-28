@@ -1,49 +1,42 @@
-using System.Text.RegularExpressions;
 using KyberWeave.Core.Agents.Model;
 using KyberWeave.Core.Diagnostics;
+using KyberWeave.Core.Security;
 
 namespace KyberWeave.Core.Agents.Security;
 
 /// <summary>
-/// Security scanner for agent system prompts and manifests.
+/// Security scanner for agent system prompts and manifests. Applies the same instruction-surface
+/// heuristics as skill scanning (injection, hidden comments, base64, secrets, provenance),
+/// with KW-AGENT-SEC-* rule codes.
 /// </summary>
 public static class AgentPromptScanner
 {
+    /// <summary>Ignore-previous-instructions / safety-bypass style injection (KW-AGENT-SEC-001).</summary>
     public const string RuleSafetyBypass = "KW-AGENT-SEC-001";
-    public const string RuleHardcodedSecret = "KW-AGENT-SEC-002";
+
+    /// <summary>OpenAI-style API key finding (KW-AGENT-SEC-024). Other secret codes are KW-AGENT-SEC-020–025.</summary>
+    public const string RuleHardcodedSecret = "KW-AGENT-SEC-024";
+
+    /// <summary>System-prompt override / reveal (KW-AGENT-SEC-003).</summary>
     public const string RuleRiskyDirective = "KW-AGENT-SEC-003";
-
-    private static readonly Regex SecretRegex =
-        new(@"\b(?:sk-[A-Za-z0-9]{20,}|ghp_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|Password\s*=\s*[^\s;]+)\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-    private static readonly Regex BypassRegex =
-        new(@"\b(ignore\s+(all\s+)?previous\s+instructions|bypass\s+(the\s+)?sandbox|disable\s+user\s+approval|skip\s+confirmation)\b",
-            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     public static DiagnosticReport Scan(AgentModel agent)
     {
         var report = new DiagnosticReport();
         var text = $"{agent.Description}\n{agent.InstructionsBody}";
+        var codes = InstructionSurfaceRuleCodes.ForAgents;
+        var subject = agent.RoleName;
+        var file = agent.FilePath;
 
-        // 1. Secrets Scan
-        var secretMatches = SecretRegex.Matches(text);
-        foreach (Match match in secretMatches)
-        {
-            report.Add(new Diagnostic(RuleHardcodedSecret, Severity.Critical,
-                $"Potential hardcoded secret or token detected in agent prompt: '{match.Value[..Math.Min(8, match.Value.Length)]}...'",
-                Path.GetFileName(agent.FilePath), agent.FilePath));
-        }
+        report.AddRange(InstructionSurfaceScanner.ScanProse(text, subject, file, codes, "agent"));
 
-        // 2. Safety Bypass Scan
-        var bypassMatches = BypassRegex.Matches(text);
-        foreach (Match match in bypassMatches)
-        {
-            report.Add(new Diagnostic(RuleSafetyBypass, Severity.Warning,
-                $"Potential safety gate bypass directive detected in prompt: '{match.Value}'",
-                Path.GetFileName(agent.FilePath), agent.FilePath));
-        }
+        // Prefer top-level frontmatter keys; also accept nested metadata.* style keys.
+        var meta = agent.FrontmatterOrMetadata;
+        meta.TryGetValue("license", out var license);
+        if (string.IsNullOrWhiteSpace(license))
+            meta.TryGetValue("License", out license);
 
+        report.AddRange(InstructionSurfaceScanner.ScanProvenance(meta, license, subject, file, codes));
         return report;
     }
 }

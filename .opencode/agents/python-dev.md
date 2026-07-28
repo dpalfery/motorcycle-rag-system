@@ -23,7 +23,9 @@ permission:
   todowrite: allow
   doom_loop: allow
   "context7_*": allow
-
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 ## Role & Purpose

@@ -1,8 +1,11 @@
 ---
 name: react-dev
-description: React UI implementation: components, hooks, client-side state, and MUI (Pigment CSS) styling with feature-slice design. Use for any React frontend — whether served in a browser or hosted in a desktop WebView (e.g. Tauri). Does not handle native or mobile UI, backend services, the desktop/native core, or test authoring.
+description: "React UI implementation: components, hooks, client-side state, and MUI (Pigment CSS) styling with feature-slice design. Use for any React frontend — whether served in a browser or hosted in a desktop WebView (e.g. Tauri). Does not handle native or mobile UI, backend services, the desktop/native core, or test authoring."
 model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 You are a frontend development specialist focusing on web applications, UI/UX implementation, and client-side architecture.
 

@@ -2,7 +2,10 @@
 tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, search/textSearch, todo, edit/editFiles, run/runCommands]
 name: sql-database-architect
 model: gpt-5.6-sol[context=272k,reasoning=high,fast=false]
-description: SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations.
+description: "SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations."
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # SQL Database Architect
 

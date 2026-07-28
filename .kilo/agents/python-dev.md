@@ -1,5 +1,5 @@
 ---
-description: Python implementation: modules, typing, packaging, and Docker/deployment configuration following PEP 8 and clean-architecture practices. Use for Python code. Does not author test suites or own CI/CD pipeline configuration.
+description: "Python implementation: modules, typing, packaging, and Docker/deployment configuration following PEP 8 and clean-architecture practices. Use for Python code. Does not author test suites or own CI/CD pipeline configuration."
 mode: subagent
 permission:
   external_directory: deny
@@ -21,7 +21,9 @@ permission:
   todowrite: allow
   doom_loop: allow
   "context7_*": allow
-
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 ## Role & Purpose
 

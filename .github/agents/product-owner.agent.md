@@ -3,6 +3,9 @@ name: product-owner
 description: Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement.
 model: claude-haiku-4-5
 tools: ['edit/editFiles', 'read/readFile', 'search/fileSearch', 'search/textSearch', 'skill', 'web_search', 'task: research-agent']
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 # Product Owner

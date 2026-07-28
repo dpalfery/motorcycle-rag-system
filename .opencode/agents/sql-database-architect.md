@@ -24,6 +24,9 @@ permission:
   todowrite: allow
   doom_loop: allow
   "microsoft-learn_*": allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 # SQL Database Architect

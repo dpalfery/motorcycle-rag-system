@@ -3,6 +3,9 @@ tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, s
 name: test-dev
 model: composer-2.5[]
 description: Authors and maintains the automated test suite — unit, integration, and end-to-end — for .NET (xUnit), Python (pytest), and frontend (Vitest/Playwright). Use whenever tests need to be written or updated. Does not implement application logic; only tests it.
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Test Developer
 

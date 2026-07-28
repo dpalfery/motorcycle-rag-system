@@ -1,5 +1,8 @@
 name = "maui-dev"
 description = ".NET MAUI mobile/desktop UI implementation: MVVM with CommunityToolkit.Maui, Shell navigation, cross-platform device features. Use for MAUI client apps. Does not handle web UI, backend services, or test authoring."
+author = "David R Palfery"
+version = "1.0.0"
+license = "MIT"
 model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 # Source GitHub tools: execute, read, edit, search, web, azure-mcp/search, microsoftdocs/mcp/*, upstash/context7/*, agent, todo

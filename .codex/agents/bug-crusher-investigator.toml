@@ -1,5 +1,8 @@
 name = "bug-crusher-investigator"
 description = "Triage a reported defect read-only: reproduce the failure, identify its root cause and blast radius, and return a structured TRIVIAL / NEEDS_ARCHITECT verdict the orchestrator routes on. Use when the bug-crusher workflow needs a defect diagnosed before anything is fixed. Do not use for implementing the fix, writing tests, or planning a refactor — it diagnoses only and never edits files."
+author = "David R Palfery"
+version = "1.0.0"
+license = "MIT"
 # workspace-write rather than read-only: the agent must be able to run builds and test
 # runners to reproduce a failure, which write to obj/bin and other build output paths.
 # The no-edit boundary is enforced by the instructions below, not the sandbox.

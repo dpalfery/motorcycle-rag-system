@@ -1,6 +1,6 @@
 ---
 name: tauri-dev
-description: Rust/Tauri v2 desktop core implementation: commands, the IPC contract, state, async, sidecar integration, and the capabilities/security model. Use for Tauri backend (Rust) work. Does not build the web/WebView UI — defines the IPC contract for the frontend to consume.
+description: "Rust/Tauri v2 desktop core implementation: commands, the IPC contract, state, async, sidecar integration, and the capabilities/security model. Use for Tauri backend (Rust) work. Does not build the web/WebView UI — defines the IPC contract for the frontend to consume."
 tools: [execute, edit, search, web, 'context7/*', ms-python.python/getPythonEnvironmentInfo, ms-python.python/getPythonExecutableCommand, ms-python.python/installPythonPackage, ms-python.python/configurePythonEnvironment, todo]
 handoffs:
   # Set `agent:` to the filename (without .agent.md) of the React agent.
@@ -11,6 +11,9 @@ handoffs:
       event names, channel payloads, and their types are defined above — wire up the
       invoke/listen calls and UI without changing the contract.
     send: false
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Tauri Rust Implementor
 

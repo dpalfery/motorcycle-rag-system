@@ -1,4 +1,5 @@
 using KyberWeave.Core.Agents.Model;
+using KyberWeave.Core.Configuration;
 using KyberWeave.Core.Diagnostics;
 using KyberWeave.Core.Skills.Model;
 using KyberWeave.Core.Text;
@@ -15,12 +16,22 @@ public static class AgentSyncLinter
     public const string RuleInstructionDrift = "KW-AGENT-SYNC-002";
     public const string RuleLowRoutingScore = "KW-AGENT-LINT-001";
 
-    public static DiagnosticReport LintSet(AgentSet agentSet, string rootDirectoryPath)
+    public static DiagnosticReport LintSet(AgentSet agentSet, string rootDirectoryPath) =>
+        LintSet(agentSet, rootDirectoryPath, HarnessProfileConfig.ProductDefaults);
+
+    public static DiagnosticReport LintSet(
+        AgentSet agentSet,
+        string rootDirectoryPath,
+        HarnessProfileConfig harnessConfig)
     {
+        ArgumentNullException.ThrowIfNull(agentSet);
+        ArgumentNullException.ThrowIfNull(harnessConfig);
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootDirectoryPath);
+
         var report = new DiagnosticReport();
         var matrix = agentSet.GetRoleHarnessMatrix();
         var allRoles = agentSet.GetAllRoleNames();
-        var profiles = HarnessCapabilityProfile.DefaultProfiles;
+        var profiles = harnessConfig.Profiles;
 
         // 1. Cross-Harness Role Parity Check with Role Satisfaction Engine
         foreach (var role in allRoles)
@@ -38,8 +49,9 @@ public static class AgentSyncLinter
                     if (profile.MappedRoleSkillOverrides.TryGetValue(role, out var skillName))
                     {
                         var skillDir = Path.Combine(rootDirectoryPath, ".agents", "skills", skillName);
-                        var docSkillDir = Path.Combine(rootDirectoryPath, "6-Docs");
-                        if (Directory.Exists(skillDir) || File.Exists(Path.Combine(rootDirectoryPath, "SKILL.md")))
+                        // Require the canonical SKILL.md inside the mapped skill folder —
+                        // a root-level SKILL.md must not falsely satisfy the role.
+                        if (File.Exists(Path.Combine(skillDir, "SKILL.md")))
                         {
                             satisfied = true; // Role is satisfied via mapped skill
                         }

@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using KyberWeave.Core.Configuration;
 using KyberWeave.Core.Docs.Model;
 using KyberWeave.Core.Parsing;
 
@@ -10,34 +11,22 @@ namespace KyberWeave.Core.Docs.Parsing;
 /// </summary>
 public sealed partial class DocumentLoader
 {
-    /// <summary>
-    /// Directory names excluded from the corpus, matched against any path segment
-    /// beneath the docs root. Archived material is historical and never retrieved as
-    /// current guidance.
-    /// </summary>
-    private static readonly string[] ExcludedSegments = ["archive", "node_modules", "obj", "bin"];
-
-    /// <summary>
-    /// Vendored upstream files that carry unrelated frontmatter of their own. These are
-    /// skill documents copied from external repositories, not MotorcycleRAG documentation.
-    /// </summary>
-    private static readonly string[] VendoredFiles =
-    [
-        "DevOps/build-performance.md",
-        "DevOps/directory-build-organization.md",
-        "DevOps/incremental-build.md",
-        "DevOps/msbuild-antipatterns.md",
-        "DevOps/msbuild-modernization.md"
-    ];
-
     private readonly string _repoRoot;
     private readonly string _docsRoot;
+    private readonly OntologyConfig _config;
 
     public DocumentLoader(string repoRoot, string docsRelativeRoot = "6-Docs")
+        : this(repoRoot, OntologyConfig.ProductDefaults.WithDocsRoot(docsRelativeRoot))
+    {
+    }
+
+    public DocumentLoader(string repoRoot, OntologyConfig config)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repoRoot);
+        ArgumentNullException.ThrowIfNull(config);
         _repoRoot = Path.GetFullPath(repoRoot);
-        _docsRoot = Path.Combine(_repoRoot, docsRelativeRoot);
+        _config = config;
+        _docsRoot = Path.Combine(_repoRoot, config.DocsRoot);
     }
 
     public DocumentSet Load()
@@ -69,17 +58,18 @@ public sealed partial class DocumentLoader
     internal bool IsExcluded(string relativePath)
     {
         var segments = relativePath.Split('/');
-        if (segments.Any(s => ExcludedSegments.Contains(s, StringComparer.OrdinalIgnoreCase)))
+        if (segments.Any(s => _config.ExcludedPathSegments.Contains(s, StringComparer.OrdinalIgnoreCase)))
         {
             return true;
         }
 
-        // Vendored paths are recorded relative to the docs root.
-        var beneathDocs = relativePath.StartsWith("6-Docs/", StringComparison.Ordinal)
-            ? relativePath["6-Docs/".Length..]
+        // Exclusion file paths are recorded relative to the docs root.
+        var prefix = _config.DocsRoot.TrimEnd('/') + "/";
+        var beneathDocs = relativePath.StartsWith(prefix, StringComparison.Ordinal)
+            ? relativePath[prefix.Length..]
             : relativePath;
 
-        return VendoredFiles.Contains(beneathDocs, StringComparer.OrdinalIgnoreCase);
+        return _config.ExcludedFiles.Contains(beneathDocs, StringComparer.OrdinalIgnoreCase);
     }
 
     private DocumentModel Parse(string absolutePath, string relativePath)
@@ -261,10 +251,11 @@ public sealed partial class DocumentLoader
 
             // | Component | Type | Source root | Overview | Detailed documentation | Owner | Last reviewed | Status |
             // Split on a leading and trailing pipe yields a leading and trailing empty cell.
-            if (cells.Length < 10) continue;
+            var maxColumn = Math.Max(_config.CatalogComponentColumn, _config.CatalogOwnerColumn);
+            if (cells.Length <= maxColumn) continue;
 
-            var component = cells[1];
-            var owner = cells[6];
+            var component = cells[_config.CatalogComponentColumn];
+            var owner = cells[_config.CatalogOwnerColumn];
 
             if (component.Length == 0 || component.StartsWith("---", StringComparison.Ordinal)) continue;
             if (component.Equals("Component", StringComparison.Ordinal)) continue;

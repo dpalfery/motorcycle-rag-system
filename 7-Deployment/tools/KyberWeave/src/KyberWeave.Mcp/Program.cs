@@ -1,3 +1,5 @@
+using KyberWeave.Core.CodeGraph;
+using KyberWeave.Core.Docs.Parsing;
 using KyberWeave.Core.Docs.Search;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -14,7 +16,12 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Logging.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace);
 
 var repoRoot = ResolveRepoRoot(args);
-builder.Services.AddSingleton(new DocumentIndexHost(repoRoot));
+
+// Composition root: factories for DocumentIndexHost. Core never invents these collaborators.
+builder.Services.AddSingleton(new DocumentIndexHost(
+    repoRoot,
+    () => CodeGraphResolverAdapter.ForRepository(repoRoot),
+    () => new DocumentLoader(repoRoot).Load()));
 
 builder.Services
     .AddMcpServer()

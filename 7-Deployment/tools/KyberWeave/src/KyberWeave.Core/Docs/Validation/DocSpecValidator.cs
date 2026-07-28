@@ -1,4 +1,5 @@
 using System.Globalization;
+using KyberWeave.Core.Configuration;
 using KyberWeave.Core.Diagnostics;
 using KyberWeave.Core.Docs.Model;
 
@@ -18,11 +19,19 @@ public sealed class DocSpecValidator
     public const string BadReference = "KW-DOC-SPEC-006";
 
     private readonly string _repoRoot;
+    private readonly OntologyConfig _config;
 
     public DocSpecValidator(string repoRoot)
+        : this(repoRoot, OntologyConfig.ProductDefaults)
+    {
+    }
+
+    public DocSpecValidator(string repoRoot, OntologyConfig config)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repoRoot);
+        ArgumentNullException.ThrowIfNull(config);
         _repoRoot = Path.GetFullPath(repoRoot);
+        _config = config;
     }
 
     public DiagnosticReport Validate(DocumentSet set)
@@ -67,7 +76,7 @@ public sealed class DocSpecValidator
                 MissingFrontmatter, Severity.Error,
                 "Document has no YAML frontmatter block.",
                 doc.Subject, doc.RelativePath,
-                "Add a frontmatter block per 6-Docs/documentation-ontology.md."));
+                $"Add a frontmatter block per {_config.DocsRoot}/documentation-ontology.md."));
             return;
         }
 
@@ -84,36 +93,41 @@ public sealed class DocSpecValidator
         var fm = doc.Frontmatter;
 
         // --- KW-DOC-SPEC-003: base keys -------------------------------------------------
-        RequireValue(fm.Id, "id", doc, report);
-        RequireValue(fm.Title, "title", doc, report);
-        RequireValue(fm.Owner, "owner", doc, report);
-        RequireValue(fm.LastReviewed, "last-reviewed", doc, report);
+        foreach (var key in _config.BaseRequiredKeys)
+        {
+            if (key is "doc-type" or "status")
+                continue; // handled with vocabulary checks below
+
+            RequireValue(GetFrontmatterValue(fm, key), key, doc, report);
+        }
 
         // --- KW-DOC-SPEC-002: closed vocabularies ---------------------------------------
         if (string.IsNullOrWhiteSpace(fm.DocType))
         {
-            RequireValue(fm.DocType, "doc-type", doc, report);
+            if (_config.IsRequiredForAll("doc-type"))
+                RequireValue(fm.DocType, "doc-type", doc, report);
         }
-        else if (doc.DocType == DocType.Unknown)
+        else if (!IsKnownDocType(fm.DocType))
         {
             report.Add(new Diagnostic(
                 InvalidVocabulary, Severity.Error,
                 $"doc-type '{fm.DocType}' is not in the closed vocabulary.",
                 doc.Subject, doc.RelativePath,
-                "One of: architecture, onboarding, requirements, adr, plan, spec, runbook, reference, rule, governance, index."));
+                $"One of: {string.Join(", ", _config.DocTypes)}."));
         }
 
         if (string.IsNullOrWhiteSpace(fm.Status))
         {
-            RequireValue(fm.Status, "status", doc, report);
+            if (_config.IsRequiredForAll("status"))
+                RequireValue(fm.Status, "status", doc, report);
         }
-        else if (doc.Status == DocStatus.Unknown)
+        else if (!IsKnownStatus(fm.Status))
         {
             report.Add(new Diagnostic(
                 InvalidVocabulary, Severity.Error,
                 $"status '{fm.Status}' is not in the closed vocabulary.",
                 doc.Subject, doc.RelativePath,
-                "One of: current, draft, needs-review, superseded."));
+                $"One of: {string.Join(", ", _config.Statuses)}."));
         }
 
         if (!string.IsNullOrWhiteSpace(fm.LastReviewed) &&
@@ -207,19 +221,21 @@ public sealed class DocSpecValidator
         }
     }
 
-    private static void ValidateRequiredForType(DocumentModel doc, DiagnosticReport report)
+    private void ValidateRequiredForType(DocumentModel doc, DiagnosticReport report)
     {
         var fm = doc.Frontmatter;
 
+        if (_config.IsRequired(doc.DocType, "component"))
+            RequireValue(fm.Component, "component", doc, report);
+
+        if (_config.IsRequired(doc.DocType, "source-root"))
+            RequireValue(fm.SourceRoot, "source-root", doc, report);
+
+        // Architecture and runbook keep the source-root ↔ code-refs pairing invariant:
+        // naming a source root without symbols (or symbols without a root) is incomplete.
         switch (doc.DocType)
         {
             case DocType.Architecture:
-                RequireValue(fm.Component, "component", doc, report);
-                // source-root and code-refs are a pair: naming a source root without
-                // naming the symbols leaves the document unreachable from the code graph,
-                // and naming symbols without a source root leaves them unanchored. A
-                // system-level overview that describes no single component sets neither,
-                // and is reached through its component edges instead.
                 if (!string.IsNullOrWhiteSpace(fm.SourceRoot))
                 {
                     RequireList(doc.CodeRefs, "code-refs", doc, report,
@@ -231,41 +247,35 @@ public sealed class DocSpecValidator
                 }
                 break;
 
-            case DocType.Onboarding:
-                RequireValue(fm.Component, "component", doc, report);
-                RequireValue(fm.SourceRoot, "source-root", doc, report);
-                break;
-
-            case DocType.Requirements:
-                RequireValue(fm.Component, "component", doc, report);
-                break;
-
             case DocType.Runbook:
-                RequireValue(fm.Component, "component", doc, report);
-                // A runbook that operates a component's code must name the symbols it
-                // operates; a process-only runbook sets neither source-root nor code-refs.
                 if (!string.IsNullOrWhiteSpace(fm.SourceRoot))
                 {
                     RequireList(doc.CodeRefs, "code-refs", doc, report,
                         "A runbook with a source-root must name the symbols it operates, or drop source-root if it is process-only.");
                 }
                 break;
-
-            case DocType.Plan:
-            case DocType.Spec:
-                RequireValue(fm.Component, "component", doc, report);
-                break;
-
-            case DocType.Adr:
-            case DocType.Reference:
-            case DocType.Rule:
-            case DocType.Governance:
-            case DocType.Index:
-            case DocType.Unknown:
-            default:
-                break;
         }
     }
+
+    private bool IsKnownDocType(string value) =>
+        _config.DocTypes.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase);
+
+    private bool IsKnownStatus(string value) =>
+        _config.Statuses.Contains(value.Trim(), StringComparer.OrdinalIgnoreCase);
+
+    private static string? GetFrontmatterValue(DocumentFrontmatter fm, string key) =>
+        key switch
+        {
+            "id" => fm.Id,
+            "title" => fm.Title,
+            "owner" => fm.Owner,
+            "last-reviewed" => fm.LastReviewed,
+            "doc-type" => fm.DocType,
+            "status" => fm.Status,
+            "component" => fm.Component,
+            "source-root" => fm.SourceRoot,
+            _ => null
+        };
 
     private static void RequireValue(string? value, string key, DocumentModel doc, DiagnosticReport report)
     {
@@ -317,7 +327,7 @@ public sealed class DocSpecValidator
 
         for (var j = 0; j <= b.Length; j++) previous[j] = j;
 
-        for (var i = 1; i <= a.Length; i++)
+        for (var i = 1; i < a.Length + 1; i++)
         {
             current[0] = i;
             for (var j = 1; j <= b.Length; j++)

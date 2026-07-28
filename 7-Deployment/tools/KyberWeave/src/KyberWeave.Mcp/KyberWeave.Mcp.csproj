@@ -8,7 +8,16 @@
     <LangVersion>latest</LangVersion>
     <RootNamespace>KyberWeave.Mcp</RootNamespace>
     <AssemblyName>kyber-weave-mcp</AssemblyName>
-    <IsPackable>false</IsPackable>
+
+    <!-- dotnet tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>kyber-weave-mcp</ToolCommandName>
+    <IsPackable>true</IsPackable>
+    <PackageId>KyberWeave.Mcp</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>KyberWeave</Authors>
+    <Description>Kyber-Weave documentation MCP server: retrieve governed repository documentation over stdio.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>

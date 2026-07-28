@@ -1,37 +1,11 @@
 using Spectre.Console;
-using Spectre.Console.Cli;
-using System.ComponentModel;
 using KyberWeave.Cli.Rendering;
+using KyberWeave.Core.Configuration;
 using KyberWeave.Core.Diagnostics;
 using KyberWeave.Core.Skills.Model;
 using KyberWeave.Core.Skills.Parsing;
 
 namespace KyberWeave.Cli.Commands;
-
-/// <summary>Settings common to the analysis commands (validate/lint/scan).</summary>
-public class AnalysisSettings : CommandSettings
-{
-    [CommandArgument(0, "[path]")]
-    [Description("Path to a SKILL.md, a skill directory, or a root containing many skills. Defaults to current directory.")]
-    public string Path { get; set; } = ".";
-
-    [CommandOption("-f|--format <FORMAT>")]
-    [Description("Output format: table | json | sarif | markdown.")]
-    [DefaultValue("table")]
-    public string Format { get; set; } = "table";
-
-    [CommandOption("--no-info")]
-    [Description("Hide Info-level findings.")]
-    public bool NoInfo { get; set; }
-
-    public OutputFormat ParsedFormat => Format.ToLowerInvariant() switch
-    {
-        "json" => OutputFormat.Json,
-        "sarif" => OutputFormat.Sarif,
-        "markdown" or "md" => OutputFormat.Markdown,
-        _ => OutputFormat.Table
-    };
-}
 
 public static class CommandHelpers
 {
@@ -57,6 +31,33 @@ public static class CommandHelpers
             return new SkillSet(skills); // report already carries the errors; caller decides exit code
 
         return new SkillSet(skills);
+    }
+
+    /// <summary>
+    /// Loads <c>kyber-weave.yml</c> for CLI commands. On failure, adds
+    /// <see cref="KyberWeaveConfigLoader.ConfigLoadErrorCode"/> and returns false.
+    /// </summary>
+    public static bool TryLoadConfig(
+        string repoRoot,
+        string? configPath,
+        DiagnosticReport report,
+        out KyberWeaveConfig config)
+    {
+        var result = KyberWeaveConfigLoader.TryLoad(repoRoot, configPath);
+        if (!result.Success)
+        {
+            report.Add(new Diagnostic(
+                KyberWeaveConfigLoader.ConfigLoadErrorCode,
+                Severity.Error,
+                result.Error ?? "Failed to load kyber-weave.yml.",
+                "kyber-weave.yml",
+                result.ConfigPath));
+            config = KyberWeaveConfig.ProductDefaults;
+            return false;
+        }
+
+        config = result.Config!;
+        return true;
     }
 
     public static void Finish(DiagnosticReport report, AnalysisSettings settings, string command, string subjectLabel)

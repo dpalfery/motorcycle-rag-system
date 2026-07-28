@@ -1,4 +1,5 @@
 using KyberWeave.Core.CodeGraph;
+using KyberWeave.Core.Docs.Model;
 using KyberWeave.Core.Docs.Parsing;
 
 namespace KyberWeave.Core.Docs.Search;
@@ -21,11 +22,17 @@ namespace KyberWeave.Core.Docs.Search;
 /// to refresh joins that are the cheap half. Documentation changes rebuild the corpus;
 /// code-graph changes rebuild only the joins.
 /// </para>
+/// <para>
+/// Composition roots supply the loader and resolver factories. This type never constructs
+/// <see cref="DocumentLoader"/> or <see cref="ICodeGraphResolver"/> implementations itself.
+/// </para>
 /// </remarks>
 public sealed class DocumentIndexHost
 {
     private readonly string _repoRoot;
     private readonly string _docsRelativeRoot;
+    private readonly Func<ICodeGraphResolver> _resolverFactory;
+    private readonly Func<DocumentSet> _documentSetFactory;
     private readonly Lock _gate = new();
 
     private DocumentCorpus? _corpus;
@@ -33,15 +40,26 @@ public sealed class DocumentIndexHost
     private long _docsStamp;
     private long _codeGraphStamp;
 
-    public DocumentIndexHost(string repoRoot, string docsRelativeRoot = "6-Docs")
+    public DocumentIndexHost(
+        string repoRoot,
+        Func<ICodeGraphResolver> resolverFactory,
+        Func<DocumentSet> documentSetFactory,
+        string docsRelativeRoot = "6-Docs")
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(repoRoot);
+        ArgumentNullException.ThrowIfNull(resolverFactory);
+        ArgumentNullException.ThrowIfNull(documentSetFactory);
         _repoRoot = Path.GetFullPath(repoRoot);
         _docsRelativeRoot = docsRelativeRoot;
+        _resolverFactory = resolverFactory;
+        _documentSetFactory = documentSetFactory;
     }
 
     /// <summary>Repository root the index is built over.</summary>
     public string RepoRoot => _repoRoot;
+
+    /// <summary>Documentation root relative to <see cref="RepoRoot"/> (from ontology / host config).</summary>
+    public string DocsRelativeRoot => _docsRelativeRoot;
 
     /// <summary>How many times the document corpus has been parsed. For diagnostics and tests.</summary>
     public int CorpusBuilds { get; private set; }
@@ -61,14 +79,14 @@ public sealed class DocumentIndexHost
 
             if (corpusStale)
             {
-                _corpus = DocumentCorpus.Build(new DocumentLoader(_repoRoot, _docsRelativeRoot).Load());
+                _corpus = DocumentCorpus.Build(_documentSetFactory());
                 _docsStamp = docsStamp;
                 CorpusBuilds++;
             }
 
             if (_index is null || corpusStale || codeGraphStamp != _codeGraphStamp)
             {
-                _index = DocumentIndex.Build(_corpus, new CodeGraphResolver(_repoRoot));
+                _index = DocumentIndex.Build(_corpus!, _resolverFactory());
                 _codeGraphStamp = codeGraphStamp;
                 JoinBuilds++;
             }

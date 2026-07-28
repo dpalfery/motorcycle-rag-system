@@ -19,9 +19,9 @@ public sealed class DocDriftLinter
     public const string UnresolvedEndpoint = "KW-DOC-DRIFT-002";
     public const string SourceRootNotIndexed = "KW-DOC-DRIFT-003";
 
-    private readonly CodeGraphResolver _resolver;
+    private readonly ICodeGraphResolver _resolver;
 
-    public DocDriftLinter(CodeGraphResolver resolver)
+    public DocDriftLinter(ICodeGraphResolver resolver)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
     }

@@ -5,7 +5,7 @@ doc-type: reference
 status: current
 component: Kyber-Weave
 owner: Developer-experience maintainers
-last-reviewed: 2026-07-27
+last-reviewed: 2026-07-28
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -23,7 +23,7 @@ The organising idea is that **every artifact that shapes agent behaviour — ski
 
 ## Provenance
 
-The skill-governance feature was absorbed from SkillForge, an MIT-licensed project by the SkillForge contributors. Kyber-Weave now owns that code outright: there is no upstream to track, refresh from, or contribute back to. The MIT licence under which it was received is retained in [LICENSE](../../7-Deployment/tools/KyberWeave/LICENSE), and the attribution is recorded in [NOTICE](../../7-Deployment/tools/KyberWeave/NOTICE).
+The skill-governance feature was absorbed from **[SkillForge](https://github.com/bonaniibm/SkillForge)** ([bonaniibm/SkillForge](https://github.com/bonaniibm/SkillForge)), an MIT-licensed project by the SkillForge contributors. Kyber-Weave now owns that code outright: there is no upstream to track, refresh from, or contribute back to, and no ongoing sync with the originating repository. The MIT licence under which it was received is retained in [LICENSE](../../7-Deployment/tools/KyberWeave/LICENSE); attribution and the originating-repository reference are recorded in [NOTICE](../../7-Deployment/tools/KyberWeave/NOTICE).
 
 ## Use
 

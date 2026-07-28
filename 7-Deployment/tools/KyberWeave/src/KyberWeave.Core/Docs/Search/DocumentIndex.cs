@@ -1,66 +1,8 @@
 using KyberWeave.Core.CodeGraph;
 using KyberWeave.Core.Docs.Model;
-using KyberWeave.Core.Docs.Parsing;
 using KyberWeave.Core.Text;
 
 namespace KyberWeave.Core.Docs.Search;
-
-/// <summary>
-/// One resolved join from a document's frontmatter to the code graph.
-/// </summary>
-/// <param name="Reference">The <c>code-refs</c> or <c>api-endpoints</c> entry as authored.</param>
-/// <param name="Kind">The indexed node kind, or <c>unresolved</c>.</param>
-/// <param name="Location">"file:line"-style location, or an empty string when unresolved.</param>
-/// <param name="InSourceRoot">
-/// True when the chosen symbol lives beneath the document's declared <c>source-root</c>.
-/// False means the name resolved only outside the component the document describes, which
-/// is weak evidence: bare symbol names collide freely across projects and languages.
-/// </param>
-/// <param name="OtherCandidates">
-/// How many further symbols share this bare name. Non-zero means the join is a best guess,
-/// and callers should say so rather than present it as fact.
-/// </param>
-public sealed record CodeJoin(
-    string Reference,
-    string Kind,
-    string Location,
-    bool InSourceRoot = true,
-    int OtherCandidates = 0);
-
-/// <summary>
-/// As much of one document as the caller's budget allows, most relevant sections first
-/// chosen but emitted in document order.
-/// </summary>
-/// <param name="Sections">The included sections, in the order they appear in the file.</param>
-/// <param name="OmittedHeadings">
-/// Headings that did not fit. Naming them is the point: the caller learns what else the
-/// document holds without having to open it, and can ask for more deliberately.
-/// </param>
-/// <param name="IsComplete">True when nothing was omitted — the whole document is here.</param>
-/// <param name="BudgetExhausted">
-/// True when at least one section was dropped for lack of budget rather than for lack of
-/// relevance. The distinction decides what to tell the caller: only here is asking again
-/// with a larger budget worth doing.
-/// </param>
-public sealed record DocumentExcerpt(
-    IReadOnlyList<DocumentSection> Sections,
-    IReadOnlyList<string> OmittedHeadings,
-    bool IsComplete,
-    bool BudgetExhausted)
-{
-    public static readonly DocumentExcerpt Empty = new([], [], false, false);
-}
-
-/// <summary>A ranked retrieval result.</summary>
-/// <param name="Document">The document that matched.</param>
-/// <param name="Score">Relevance, higher is better.</param>
-/// <param name="Excerpt">The prose returned for this document.</param>
-/// <param name="CodeJoins">That document's resolved joins to the code graph.</param>
-public sealed record DocumentHit(
-    DocumentModel Document,
-    double Score,
-    DocumentExcerpt Excerpt,
-    IReadOnlyList<CodeJoin> CodeJoins);
 
 /// <summary>
 /// Retrieval over the documentation corpus, joined to the code graph.
@@ -164,7 +106,7 @@ public sealed class DocumentIndex
     /// <see cref="DocumentCorpus.Build"/> so a code-graph change can rebuild the joins
     /// without re-reading and re-vectorising every document.
     /// </summary>
-    public static DocumentIndex Build(DocumentCorpus corpus, CodeGraphResolver resolver)
+    public static DocumentIndex Build(DocumentCorpus corpus, ICodeGraphResolver resolver)
     {
         ArgumentNullException.ThrowIfNull(corpus);
         ArgumentNullException.ThrowIfNull(resolver);
@@ -206,12 +148,8 @@ public sealed class DocumentIndex
     }
 
     /// <summary>Builds an index from an already-loaded document set and resolver.</summary>
-    public static DocumentIndex Build(DocumentSet set, CodeGraphResolver resolver) =>
+    public static DocumentIndex Build(DocumentSet set, ICodeGraphResolver resolver) =>
         Build(DocumentCorpus.Build(set), resolver);
-
-    /// <summary>Loads the corpus and the code graph, then indexes them.</summary>
-    public static DocumentIndex Build(string repoRoot, string docsRelativeRoot = "6-Docs") =>
-        Build(new DocumentLoader(repoRoot, docsRelativeRoot).Load(), new CodeGraphResolver(repoRoot));
 
     /// <summary>
     /// Free-text, symbol, route, component or doc-id retrieval. Returns the highest

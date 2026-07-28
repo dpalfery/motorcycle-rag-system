@@ -147,7 +147,7 @@ public sealed class ExcerptBudgetTests : IDisposable
     {
         var text = Frontmatter + string.Join("\n", sections.Select(s => $"## {s.Heading}\n\n{s.Body}\n"));
         _fixture.WithCatalog().WithSourceRoot("1-Presentation/Api").Write("6-Docs/webui/architecture.md", text);
-        return DocumentIndex.Build(_fixture.Load(), new CodeGraphResolver(_fixture.Root));
+        return DocumentIndex.Build(_fixture.Load(), CodeGraphResolverAdapter.ForRepository(_fixture.Root));
     }
 
     private static string Prose(string subject, int words) =>

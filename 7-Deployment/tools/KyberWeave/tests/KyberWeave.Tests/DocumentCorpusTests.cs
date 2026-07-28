@@ -149,7 +149,10 @@ public sealed class DocumentIndexHostTests : IDisposable
 
             Kerberos ticket renewal.
             """);
-        return new DocumentIndexHost(_fixture.Root);
+        return new DocumentIndexHost(
+            _fixture.Root,
+            () => CodeGraphResolverAdapter.ForRepository(_fixture.Root),
+            () => new Core.Docs.Parsing.DocumentLoader(_fixture.Root).Load());
     }
 
     [Fact]

@@ -69,7 +69,7 @@ public sealed class RetrievalRegressionTests
 
         var index = DocumentIndex.Build(
             new DocumentLoader(root).Load(),
-            new CodeGraphResolver(root));
+            CodeGraphResolverAdapter.ForRepository(root));
 
         var ids = index.Explore(query, maxDocs: TopN)
             .Select(h => h.Document.Frontmatter.Id ?? h.Document.RelativePath)
@@ -99,7 +99,7 @@ public sealed class RetrievalRegressionTests
 
         var index = DocumentIndex.Build(
             new DocumentLoader(root).Load(),
-            new CodeGraphResolver(root));
+            CodeGraphResolverAdapter.ForRepository(root));
 
         var hits = index.Explore(query, maxDocs: TopN);
 

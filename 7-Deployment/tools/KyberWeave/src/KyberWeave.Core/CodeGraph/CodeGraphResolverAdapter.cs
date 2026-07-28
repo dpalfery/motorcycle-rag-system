@@ -3,25 +3,9 @@ using System.Globalization;
 
 namespace KyberWeave.Core.CodeGraph;
 
-/// <summary>One resolved code symbol from the CodeGraph index.</summary>
-/// <param name="Language">Indexed language, e.g. <c>csharp</c> or <c>typescript</c>. A bare
-/// symbol name can collide across languages, so callers disambiguating a match need it.</param>
-/// <param name="StartLine">1-based line the symbol is declared on.</param>
-public sealed record CodeGraphNode(
-    string Id,
-    string Kind,
-    string Name,
-    string QualifiedName,
-    string FilePath,
-    string Language,
-    int StartLine)
-{
-    /// <summary>The symbol's location as <c>file:line</c>.</summary>
-    public string Location => StartLine > 0 ? $"{FilePath}:{StartLine}" : FilePath;
-}
-
 /// <summary>
-/// Reads <c>.codegraph/codegraph.db</c> and answers symbol and route lookups.
+/// Default <see cref="ICodeGraphResolver"/>: reads a CodeGraph SQLite database via the
+/// <c>sqlite3</c> CLI and answers symbol and route lookups.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,9 +24,9 @@ public sealed record CodeGraphNode(
 /// per-symbol querying would have been.
 /// </para>
 /// </remarks>
-public sealed class CodeGraphResolver
+public sealed class CodeGraphResolverAdapter : ICodeGraphResolver
 {
-    private const char FieldSeparator = '';
+    private const char FieldSeparator = '\u001f';
 
     private static readonly string[] SymbolKinds =
         ["class", "interface", "method", "function", "struct", "enum", "type_alias"];
@@ -52,19 +36,23 @@ public sealed class CodeGraphResolver
     private readonly Dictionary<string, CodeGraphNode> _routes = new(StringComparer.Ordinal);
     private readonly List<string> _filePaths = [];
 
-    /// <summary>True when an index was found and read.</summary>
+    /// <inheritdoc />
     public bool IsAvailable { get; }
 
-    /// <summary>Why the index could not be read, when <see cref="IsAvailable"/> is false.</summary>
+    /// <inheritdoc />
     public string? UnavailableReason { get; }
 
-    /// <summary>Where the index was looked for, for diagnostics.</summary>
+    /// <inheritdoc />
     public string DatabasePath { get; }
 
-    public CodeGraphResolver(string repoRoot)
+    /// <summary>
+    /// Loads the given CodeGraph database path. Missing or unreadable indexes leave
+    /// <see cref="IsAvailable"/> false with <see cref="UnavailableReason"/> set.
+    /// </summary>
+    public CodeGraphResolverAdapter(string databasePath)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(repoRoot);
-        DatabasePath = Path.Combine(Path.GetFullPath(repoRoot), ".codegraph", "codegraph.db");
+        ArgumentException.ThrowIfNullOrWhiteSpace(databasePath);
+        DatabasePath = Path.GetFullPath(databasePath);
 
         if (!File.Exists(DatabasePath))
         {
@@ -83,6 +71,18 @@ public sealed class CodeGraphResolver
         }
     }
 
+    /// <summary>
+    /// Creates an adapter for the standard <c>.codegraph/codegraph.db</c> path under a
+    /// repository root. Composition roots call this; core consumers take
+    /// <see cref="ICodeGraphResolver"/> only.
+    /// </summary>
+    public static CodeGraphResolverAdapter ForRepository(string repoRoot)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(repoRoot);
+        var databasePath = Path.Combine(Path.GetFullPath(repoRoot), ".codegraph", "codegraph.db");
+        return new CodeGraphResolverAdapter(databasePath);
+    }
+
     private void Load()
     {
         // One pass over the node table. 'import' rows are excluded: they are module
@@ -90,7 +90,7 @@ public sealed class CodeGraphResolver
         const string sql = """
             SELECT id, kind, name, qualified_name, file_path, language, start_line
             FROM nodes
-            WHERE kind <> 'import';
+            WHERE kind <> 'import'
             """;
 
         foreach (var line in RunSqlite(sql))
@@ -166,7 +166,7 @@ public sealed class CodeGraphResolver
         return output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
     }
 
-    /// <summary>Resolves a bare symbol name, or a fully qualified name, to every match.</summary>
+    /// <inheritdoc />
     public IReadOnlyList<CodeGraphNode> ResolveSymbol(string name)
     {
         if (!IsAvailable || string.IsNullOrWhiteSpace(name)) return [];
@@ -176,14 +176,14 @@ public sealed class CodeGraphResolver
         return [];
     }
 
-    /// <summary>Resolves an exact <c>METHOD /path</c> route string.</summary>
+    /// <inheritdoc />
     public IReadOnlyList<CodeGraphNode> ResolveRoute(string route)
     {
         if (!IsAvailable || string.IsNullOrWhiteSpace(route)) return [];
         return _routes.TryGetValue(route, out var node) ? [node] : [];
     }
 
-    /// <summary>True when the index contains at least one file beneath the given path prefix.</summary>
+    /// <inheritdoc />
     public bool HasFilesUnder(string relativePathPrefix)
     {
         if (!IsAvailable || string.IsNullOrWhiteSpace(relativePathPrefix)) return false;
@@ -197,7 +197,7 @@ public sealed class CodeGraphResolver
         return _filePaths.Exists(p => p.StartsWith(normalized + "/", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Candidate symbol names for a "did you mean" hint after a failed resolve.</summary>
+    /// <inheritdoc />
     public IReadOnlyList<string> CandidateNames(string like)
     {
         if (!IsAvailable || string.IsNullOrWhiteSpace(like)) return [];
@@ -214,6 +214,6 @@ public sealed class CodeGraphResolver
             .ToList();
     }
 
-    /// <summary>All indexed route strings, for a "did you mean" hint.</summary>
+    /// <inheritdoc />
     public IReadOnlyList<string> AllRoutes() => IsAvailable ? _routes.Keys.ToList() : [];
 }

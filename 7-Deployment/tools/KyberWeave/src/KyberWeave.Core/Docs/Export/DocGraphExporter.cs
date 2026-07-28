@@ -5,9 +5,6 @@ using KyberWeave.Core.Docs.Model;
 
 namespace KyberWeave.Core.Docs.Export;
 
-/// <summary>Counts from one export run.</summary>
-public sealed record DocGraphExportResult(int NodeCount, int EdgeCount, string NodesPath, string EdgesPath);
-
 /// <summary>
 /// Emits the documentation graph as newline-delimited JSON.
 /// </summary>
@@ -21,9 +18,9 @@ public sealed class DocGraphExporter
 {
     private static readonly JsonSerializerOptions Compact = new() { WriteIndented = false };
 
-    private readonly CodeGraphResolver _resolver;
+    private readonly ICodeGraphResolver _resolver;
 
-    public DocGraphExporter(CodeGraphResolver resolver)
+    public DocGraphExporter(ICodeGraphResolver resolver)
     {
         _resolver = resolver ?? throw new ArgumentNullException(nameof(resolver));
     }

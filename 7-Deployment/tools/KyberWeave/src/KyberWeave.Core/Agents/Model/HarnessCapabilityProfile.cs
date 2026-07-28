@@ -5,6 +5,10 @@ namespace KyberWeave.Core.Agents.Model;
 /// Used by validation and linting engines to understand whether parent agents (like conductor)
 /// are implemented natively in the harness agent folder or via skill mappings.
 /// </summary>
+/// <remarks>
+/// Product defaults deliberately omit host-specific role→skill satisfaction maps
+/// (e.g. MotorcycleRAG conductor→conductor). Hosts restore those via <c>kyber-weave.yml</c>.
+/// </remarks>
 public sealed class HarnessCapabilityProfile
 {
     public HarnessKind Harness { get; init; }
@@ -12,48 +16,11 @@ public sealed class HarnessCapabilityProfile
     public bool SupportsNativeParentAgents { get; init; } = true;
     public Dictionary<string, string> MappedRoleSkillOverrides { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Product-default harness directories with no host-policy skill mappings.
+    /// Prefer <see cref="Configuration.HarnessProfileConfig.ProductDefaults"/> when
+    /// host overrides may be in play.
+    /// </summary>
     public static IReadOnlyDictionary<HarnessKind, HarnessCapabilityProfile> DefaultProfiles { get; } =
-        new Dictionary<HarnessKind, HarnessCapabilityProfile>
-        {
-            [HarnessKind.Codex] = new HarnessCapabilityProfile
-            {
-                Harness = HarnessKind.Codex,
-                DirectoryName = ".codex/agents",
-                SupportsNativeParentAgents = false,
-                MappedRoleSkillOverrides = new() { ["conductor"] = "conductor" }
-            },
-            [HarnessKind.Cursor] = new HarnessCapabilityProfile
-            {
-                Harness = HarnessKind.Cursor,
-                DirectoryName = ".cursor/agents",
-                SupportsNativeParentAgents = false,
-                MappedRoleSkillOverrides = new() { ["conductor"] = "conductor" }
-            },
-            [HarnessKind.Claude] = new HarnessCapabilityProfile
-            {
-                Harness = HarnessKind.Claude,
-                DirectoryName = ".claude/agents",
-                SupportsNativeParentAgents = false,
-                MappedRoleSkillOverrides = new() { ["conductor"] = "conductor" }
-            },
-            [HarnessKind.GitHubCopilot] = new HarnessCapabilityProfile
-            {
-                Harness = HarnessKind.GitHubCopilot,
-                DirectoryName = ".github/agents",
-                SupportsNativeParentAgents = false,
-                MappedRoleSkillOverrides = new() { ["conductor"] = "conductor" }
-            },
-            [HarnessKind.OpenCode] = new HarnessCapabilityProfile
-            {
-                Harness = HarnessKind.OpenCode,
-                DirectoryName = ".opencode/agents",
-                SupportsNativeParentAgents = true
-            },
-            [HarnessKind.Kilo] = new HarnessCapabilityProfile
-            {
-                Harness = HarnessKind.Kilo,
-                DirectoryName = ".kilo/agents",
-                SupportsNativeParentAgents = true
-            }
-        };
+        Configuration.HarnessProfileConfig.ProductDefaults.Profiles;
 }

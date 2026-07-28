@@ -16,7 +16,22 @@ from typing import Any
 
 
 def _rule_id(rule: dict[str, Any]) -> str | None:
-    return rule.get("id") or rule.get("ruleId")
+    # SARIF reportingDescriptor identity is `id` (ruleId belongs on result).
+    return rule.get("id")
+
+
+def _strip_rule_index(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop ruleIndex so merged results bind via ruleId only.
+
+    Appending/deduping driver.rules invalidates per-run ruleIndex values; GitHub
+    Code Scanning resolves findings primarily by ruleId.
+    """
+    cleaned: list[dict[str, Any]] = []
+    for result in results:
+        item = dict(result)
+        item.pop("ruleIndex", None)
+        cleaned.append(item)
+    return cleaned
 
 
 def _merge_rules(existing: list[dict[str, Any]], incoming: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -51,7 +66,7 @@ def _merge_into(base: dict[str, Any], other: dict[str, Any]) -> None:
     )
 
     base.setdefault("results", [])
-    base["results"].extend(other.get("results") or [])
+    base["results"].extend(_strip_rule_index(list(other.get("results") or [])))
 
     if other.get("artifacts"):
         base.setdefault("artifacts", [])
@@ -81,7 +96,7 @@ def main() -> int:
             if merged_run is None:
                 # Deep-ish copy via JSON so later merges do not mutate input objects.
                 merged_run = json.loads(json.dumps(run))
-                merged_run.setdefault("results", [])
+                merged_run["results"] = _strip_rule_index(list(merged_run.get("results") or []))
                 tool = merged_run.setdefault("tool", {})
                 driver = tool.setdefault("driver", {})
                 driver.setdefault("rules", list(driver.get("rules") or []))

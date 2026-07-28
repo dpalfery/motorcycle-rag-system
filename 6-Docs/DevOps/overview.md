@@ -149,6 +149,7 @@ flowchart LR
 - `skill-gate`: Builds the Kyber-Weave CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
 - `agent-gate`: Matrix over the six harnesses (`codex`, `cursor`, `claude`, `github`, `opencode`, `kilo`). Each leg runs `agent validate . --harness <name>` and `agent scan . --harness <name>` against the project root (harness trees discovered as `.harnessname/agents`), uploading SARIF under a unique category `kyber-weave-agent-<harness>`. Currently uses `continue-on-error: true`.
 - `agent-sync`: Runs `agent sync-check .` once across all discovered harnesses (role parity and instruction drift). Currently uses `continue-on-error: true`.
+- `skillspector-gate`: Advisory NVIDIA SkillSpector static scan (`--no-llm`) of `.agents/skills`, merged SARIF upload under category `skillspector-skills`. Uses `continue-on-error: true`; does not fail the PR gate.
 
 **Gate summary** (`pr-gate-summary`)
 
@@ -176,6 +177,7 @@ A consolidated scheduled-workflow pipeline that replaces the scheduled functiona
 - `performance-analysis`: Generates a performance report from E2E and load test results.
 - `skill-gate`: Same Kyber-Weave skill validation as the PR gate, but runs after unit tests (not blocking deployment).
 - `agent-gate` / `agent-sync`: Same Kyber-Weave agent validate/scan matrix and sync-check as the PR gate.
+- `skillspector-gate`: Same advisory SkillSpector static scan as the PR gate.
 
 **IaC security scan (runs on all triggers, 2 AM + 3 AM):**
 

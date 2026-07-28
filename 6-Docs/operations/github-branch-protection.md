@@ -111,6 +111,7 @@ The `nightly.yml` pipeline runs on schedule and does not block PRs. These check 
 | `nightly / Kyber-Weave Skill Gate` | `skill-gate` | Skill directory validation |
 | `nightly / Kyber-Weave Agent Gate (*)` | `agent-gate` | Parallel per-harness agent validate/scan |
 | `nightly / Kyber-Weave Agent Sync Check` | `agent-sync` | Cross-harness role parity |
+| `nightly / NVIDIA SkillSpector (advisory)` | `skillspector-gate` | Static skill semantic scan (SARIF) |
 | `nightly / IaC Security Scan (Checkov)` | `iac-scan` | Dockerfile + workflow IaC scan |
 | `nightly / Trivy Container Scan` | `trivy-container-scan` | API and UI container image scans |
 | `nightly / Test Summary` | `test-summary` | Consolidated nightly results report |

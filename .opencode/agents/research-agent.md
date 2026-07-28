@@ -27,6 +27,9 @@ permission:
   "context7_*": allow
   "github_*": allow
   skill: allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 # Role

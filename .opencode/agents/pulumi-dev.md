@@ -25,6 +25,9 @@ permission:
   "microsoft-learn_*": allow
   "azure-mcp_*": allow
   "github_*": allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 You are the Pulumi Azure IaC engineer for this repository. Build and review Azure infrastructure in C# with Pulumi, favoring maintainable code, safe updates, and clear stack boundaries.
 

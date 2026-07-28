@@ -1,5 +1,5 @@
 ---
-description: Data-access layer implementation with Dapper and FluentMigrator: repository classes, IRepository<T>, and database migrations from an approved schema. Use for data-access code and migrations. Does not design database schemas or write application/domain logic.
+description: "Data-access layer implementation with Dapper and FluentMigrator: repository classes, IRepository<T>, and database migrations from an approved schema. Use for data-access code and migrations. Does not design database schemas or write application/domain logic."
 mode: subagent
 model: zai-coding-plan/glm-5.2
 permission:
@@ -22,6 +22,9 @@ permission:
   todowrite: allow
   doom_loop: allow
   "context7_*": allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Data Access Layer Developer
 

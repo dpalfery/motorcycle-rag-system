@@ -1,8 +1,11 @@
 ---
 name: sql-database-architect
-description: SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations.
+description: "SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations."
 model: sonnet
 tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # SQL Database Architect
 

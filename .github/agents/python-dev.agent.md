@@ -1,8 +1,11 @@
 ---
 name: python-dev
-description: Python implementation: modules, typing, packaging, and Docker/deployment configuration following PEP 8 and clean-architecture practices. Use for Python code. Does not author test suites or own CI/CD pipeline configuration.
+description: "Python implementation: modules, typing, packaging, and Docker/deployment configuration following PEP 8 and clean-architecture practices. Use for Python code. Does not author test suites or own CI/CD pipeline configuration."
 tools: [ 'execute', 'read', 'edit', 'search', 'web', 'search',  'upstash/context7/*', 'todo', '/Users/dave/.vscode-insiders/extensions/ms-python.vscode-pylance-2026.2.104/skills/pylance-refactoring/SKILL.md', '/Users/dave/.vscode-insiders/extensions/ms-python.vscode-pylance-2026.2.104/skills/python-fact-grounded-coding/SKILL.md','pylance-mcp-server/*']
 model: Qwen3.5 9B (lmstudio)
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 ## Role & Purpose
 

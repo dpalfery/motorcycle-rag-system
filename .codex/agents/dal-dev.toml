@@ -1,5 +1,8 @@
 name = "dal-dev"
 description = "Data-access layer implementation with Dapper and FluentMigrator: repository classes, IRepository<T>, and database migrations from an approved schema. Use for data-access code and migrations. Does not design database schemas or write application/domain logic."
+author = "David R Palfery"
+version = "1.0.0"
+license = "MIT"
 model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 

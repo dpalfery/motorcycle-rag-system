@@ -1,5 +1,8 @@
 name = "product-owner"
 description = "Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement."
+author = "David R Palfery"
+version = "1.0.0"
+license = "MIT"
 model = "gpt-5.6-terra"
 model_reasoning_effort = "high"
 developer_instructions = '''

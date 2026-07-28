@@ -1,6 +1,6 @@
 ---
 name: SQL Database Architect
-description: SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations.
+description: "SQL Server / Azure SQL schema design: tables, T-SQL, indexing, security hardening, and source-controlled (dacpac) deployment. Use for schema/DDL design or query tuning. Does not write application data-access code or migrations."
 model: GPT-5.4-mini
 tools:
   - read
@@ -8,7 +8,10 @@ tools:
   - search
   - mssql/*
   - microsoft_docs_search
-  - microsoft_docs_fetch  
+  - microsoft_docs_fetch
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # SQL Database Architect
 

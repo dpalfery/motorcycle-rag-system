@@ -24,6 +24,9 @@ permission:
   doom_loop: allow
   "microsoft-learn_*": allow
   "context7_*": allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Documentation Developer
 

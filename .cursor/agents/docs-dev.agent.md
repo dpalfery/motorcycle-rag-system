@@ -2,7 +2,10 @@
 tools: [read/readFile, search/fileSearch, search/textSearch, edit/editFiles, todo]
 name: docs-dev
 model: composer-2.5[]
-description: Technical documentation: READMEs, API docs, ADRs, runbooks, and inline code docs in Markdown/Mermaid. Use when the deliverable is documentation. Does not write implementation code, tests, CI/CD config, or spec-flow documents.
+description: "Technical documentation: READMEs, API docs, ADRs, runbooks, and inline code docs in Markdown/Mermaid. Use when the deliverable is documentation. Does not write implementation code, tests, CI/CD config, or spec-flow documents."
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Documentation Developer
 

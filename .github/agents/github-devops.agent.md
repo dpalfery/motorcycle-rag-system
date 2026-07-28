@@ -1,8 +1,11 @@
 ---
 name: github-devops
-description: CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state.
+description: "CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state."
 tools: ['execute', 'read', 'edit', 'search', 'web', 'azure-mcp/search', 'microsoftdocs/mcp/*', 'upstash/context7/*', 'agent', 'todo']
 model: GPT-5.4 mini (copilot)
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # GitHub DevOps Agent
 

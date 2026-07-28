@@ -1,8 +1,11 @@
 ---
 name: dotnet-dev
-description: .NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI.
+description: ".NET/C# backend implementation: ASP.NET Core minimal APIs, service classes, dependency injection, middleware; runs dotnet build/run. Use for backend .cs changes. Does not handle data-access/persistence, database migrations, CI/CD, tests, or client UI."
 tools: Read, Write, Edit, Bash, Glob, Grep, WebSearch, WebFetch
 model: haiku
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 ## Skills
 

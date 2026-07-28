@@ -1,5 +1,5 @@
 ---
-description: Finds, verifies, and summarizes authoritative external technical information — vendor docs, RFCs, SDK/library specifications. Use to verify an external-technology claim before it drives a decision. Read-only: does not edit files, run commands, or investigate cloud resource state.
+description: "Finds, verifies, and summarizes authoritative external technical information — vendor docs, RFCs, SDK/library specifications. Use to verify an external-technology claim before it drives a decision. Read-only: does not edit files, run commands, or investigate cloud resource state."
 mode: subagent
 permission:
   doom_loop: deny
@@ -25,6 +25,9 @@ permission:
   "context7_*": allow
   "github_*": allow
   skill: allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 # Role
 

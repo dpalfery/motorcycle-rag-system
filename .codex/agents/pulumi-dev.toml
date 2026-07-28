@@ -1,6 +1,9 @@
 name = "pulumi-dev"
 model = "gpt-5.6-terra"
 description = "Azure infrastructure-as-code in C# with Pulumi (Azure Native): stack design, reusable components, safe preview/apply workflows. Use to provision or modify Azure infrastructure. Does not own CI/CD pipelines, investigate live resource state, or design database schemas."
+author = "David R Palfery"
+version = "1.0.0"
+license = "MIT"
 # Source GitHub tools: [ vscode/runCommand, vscode/toolSearch, execute, read, edit, search, web, azure-mcp/advisor, azure-mcp/applens, azure-mcp/azd, azure-mcp/search, ms-azuretools.vscode-azureresourcegroups/azureActivityLog, todo]
 # Unmapped GitHub tools needing a Codex/plugin equivalent: ms-azuretools.vscode-azureresourcegroups/azureActivityLog
 developer_instructions = '''

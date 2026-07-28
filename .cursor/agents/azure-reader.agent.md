@@ -3,6 +3,9 @@ tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, s
 name: azure-reader
 model: composer-2.5[]
 description: Read-only investigation of live Azure resource state via Azure MCP tools; gathers configuration and runtime facts for debugging, planning, and architecture. Use to learn how Azure is configured or behaving. Does not create or modify infrastructure, or run deployments.
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 You are a read-only Azure investigation agent.
 

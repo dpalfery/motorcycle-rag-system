@@ -3,6 +3,9 @@ tools: [read/readFile, search/fileSearch, search/textSearch, edit/editFiles, ski
 name: product-owner
 model: claude-opus-4-8[]
 description: Single-owner spec planning; produces requirements/design/tasks behind approval gates; planning artifacts only, does not implement.
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 
 # Product Owner

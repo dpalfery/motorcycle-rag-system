@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using KyberWeave.Core.Agents.Model;
 using KyberWeave.Core.Parsing;
 
@@ -13,6 +14,13 @@ namespace KyberWeave.Core.Agents.Parsing;
 /// </remarks>
 public sealed class MarkdownAgentParser : IAgentParser
 {
+    // Top-level scalar keys used for identity, routing, and provenance. Applied as a
+    // line-based overlay so an otherwise-invalid YAML block (unquoted colon in description,
+    // free-form tools lists) still surfaces author/version/license and description.
+    private static readonly Regex TopLevelScalarRegex = new(
+        @"^(?<key>name|description|model|author|version|license)\s*:\s*(?<val>.+?)\s*$",
+        RegexOptions.Compiled | RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
     public bool CanParse(string filePath) =>
         filePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ||
         filePath.EndsWith(".agent.md", StringComparison.OrdinalIgnoreCase);
@@ -59,8 +67,10 @@ public sealed class MarkdownAgentParser : IAgentParser
             }
             catch
             {
-                // Best-effort yaml parsing
+                // Best-effort yaml parsing — scalar overlay below still recovers provenance.
             }
+
+            OverlayTopLevelScalars(read.Yaml, metadata, ref roleName, ref description, ref model);
         }
 
         return new AgentModel
@@ -75,5 +85,41 @@ public sealed class MarkdownAgentParser : IAgentParser
             Tools = tools,
             FrontmatterOrMetadata = metadata
         };
+    }
+
+    private static void OverlayTopLevelScalars(
+        string yaml,
+        Dictionary<string, string> metadata,
+        ref string roleName,
+        ref string description,
+        ref string model)
+    {
+        foreach (Match match in TopLevelScalarRegex.Matches(yaml))
+        {
+            var key = match.Groups["key"].Value;
+            var val = Unquote(match.Groups["val"].Value.Trim());
+            if (string.IsNullOrWhiteSpace(val))
+                continue;
+
+            metadata[key] = val;
+
+            if (key.Equals("name", StringComparison.OrdinalIgnoreCase))
+                roleName = val;
+            else if (key.Equals("description", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(description))
+                description = val;
+            else if (key.Equals("model", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(model))
+                model = val;
+        }
+    }
+
+    private static string Unquote(string value)
+    {
+        if (value.Length >= 2)
+        {
+            if ((value[0] == '"' && value[^1] == '"') || (value[0] == '\'' && value[^1] == '\''))
+                return value[1..^1];
+        }
+
+        return value;
     }
 }

@@ -32,6 +32,9 @@ permission:
   websearch: allow
   webfetch: allow
   doom_loop: allow
+author: David R Palfery
+version: 1.0.0
+license: MIT
 ---
 You are a strict code reviewer. Focus heavily on OWASP top 10 vulnerabilities...
 

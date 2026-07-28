@@ -29,6 +29,12 @@ The skill-governance feature was absorbed from SkillForge, an MIT-licensed proje
 
 Treat skills and coding harness agent definitions (`.codex`, `.cursor`, `.claude`, `.github`, `.opencode`, `.kilo`) as supply-chain artifacts. Run Kyber-Weave validation, routing lint, and security scanning according to the repository workflow. Its diagnostics assist review but do not replace human security review.
 
+## Security scanning
+
+`skill scan` and `agent scan` share one instruction-surface scanner (`InstructionSurfaceScanner`): prompt-injection heuristics, hidden HTML comments, base64 blobs, hardcoded-secret patterns, and provenance infos (author / version / license). Skills emit `KW-SKILL-SEC-*`; agents emit the parallel `KW-AGENT-SEC-*` codes. Skill scans also cover bundled scripts under `scripts/`.
+
+These are regex heuristics — necessary but not sufficient. CI also runs an advisory [NVIDIA SkillSpector](https://github.com/NVIDIA/SkillSpector) job (`skillspector-gate` in `pr-gate.yml` and `nightly.yml`): static analysis only (`--no-llm`), SARIF category `skillspector-skills`, `continue-on-error: true`. Pin and install details live in the workflow files.
+
 ## Commands
 
 Three symmetric branches, one per artifact class.

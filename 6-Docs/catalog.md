@@ -29,7 +29,7 @@ This catalog defines the maintained documentation surface. `Current` means the R
 | Azure Environment | Deployment environment | `7-Deployment/infrastructure` | [README](../7-Deployment/README.md) | [Azure Environment docs](AzureEnvironment/) | Platform maintainers | 2026-07-11 | Current |
 | IaC Security Scanning | Tooling suite | `7-Deployment/scanning` | [README](../7-Deployment/scanning/README.md) | [DevOps overview](DevOps/overview.md) | Platform maintainers | 2026-07-19 | Current |
 | Database Setup CLI | CLI tool | `7-Deployment/DbSetup` | [README](../7-Deployment/DbSetup/README.md) | [database setup reference](DevOps/database-setup.md), [schema deployment strategy](DevOps/database-schema.md) | Platform maintainers | 2026-07-18 | Current |
-| Kyber-Weave | Tooling suite | `7-Deployment/tools/KyberWeave` | [README](../7-Deployment/tools/KyberWeave/README.md) | [Kyber-Weave reference](reference/kyber-weave.md) | Developer-experience maintainers | 2026-07-21 | Current |
+| Kyber-Weave | External tooling (CLI/MCP) | https://github.com/dpalfery/kyber-weave | [stub README](../7-Deployment/tools/KyberWeave/README.md) | [Kyber-Weave reference](reference/kyber-weave.md) | Developer-experience maintainers | 2026-07-28 | Current |
 | Caching services | Shared library | `2-Application/MotorcycleRAG.Application/Services/Caching` | [README](../2-Application/MotorcycleRAG.Application/Services/Caching/README.md) | [architecture rules](rules/architecture-general.md) | Application maintainers | 2026-07-11 | Current |
 
 ## Catalog maintenance

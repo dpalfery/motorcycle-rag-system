@@ -69,7 +69,7 @@ Agents and skills should look up the following properties dynamically to find th
 - **Documentation Index:** `6-Docs/README.md`
 - **Documentation Standard:** `6-Docs/documentation-standard.md`
 - **Documentation Ontology:** `6-Docs/documentation-ontology.md`
-- **Governance Framework (Kyber-Weave):** `7-Deployment/tools/KyberWeave/` — reference: `6-Docs/reference/kyber-weave.md`; CLI project: `7-Deployment/tools/KyberWeave/src/KyberWeave.Cli`; MCP server project: `7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp`
+- **Governance Framework (Kyber-Weave):** external product [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave) — install CLI/MCP via GitHub Releases, npm (`@dpalfery/kyber-weave`), or Homebrew; host overrides: root `kyber-weave.yml`; reference: `6-Docs/reference/kyber-weave.md`
 - **Skill Validation Script:** `7-Deployment/scripts/kyber-weave-validate.sh`
 - **Agent Scratchpad:** `.agent-scratch-pad/`
 - **Clean Architecture Rules:** `6-Docs/rules/architecture-general.md`

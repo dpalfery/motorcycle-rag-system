@@ -6,7 +6,7 @@
 
 - `infrastructure/` — declarative Pulumi infrastructure source.
 - `DbSetup/` — local development database setup CLI.
-- `tools/KyberWeave/` — the Kyber-Weave governance toolkit (skills, agent definitions, documentation) and its MCP server.
+- `tools/KyberWeave/` — stub pointing at the extracted product ([dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave)); host overrides live in root `kyber-weave.yml`.
 
 ## Operating model
 

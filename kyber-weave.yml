@@ -1,0 +1,39 @@
+# MotorcycleRAG host overrides for Kyber-Weave (external product).
+# Product defaults live in https://github.com/dpalfery/kyber-weave — this file
+# restores host-only policy (docs root, catalog columns, exclusions, conductor→skill).
+ontology:
+  docs-root: 6-Docs
+  excluded-segments:
+    - archive
+    - node_modules
+    - obj
+    - bin
+  excluded-files:
+    - DevOps/build-performance.md
+    - DevOps/directory-build-organization.md
+    - DevOps/incremental-build.md
+    - DevOps/msbuild-antipatterns.md
+    - DevOps/msbuild-modernization.md
+  catalog:
+    component-column: 1
+    owner-column: 6
+harness:
+  profiles:
+    codex:
+      mapped-role-skill-overrides:
+        conductor: conductor
+    cursor:
+      mapped-role-skill-overrides:
+        conductor: conductor
+    claude:
+      mapped-role-skill-overrides:
+        conductor: conductor
+    githubcopilot:
+      mapped-role-skill-overrides:
+        conductor: conductor
+    opencode:
+      mapped-role-skill-overrides:
+        conductor: conductor
+    kilo:
+      mapped-role-skill-overrides:
+        conductor: conductor

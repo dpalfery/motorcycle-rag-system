@@ -42,7 +42,10 @@
       "args": [
         "stdio"
       ],
-      "envFile": "${workspaceFolder}/.cursor/github-mcp.env"
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${env:GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "GITHUB_READ_ONLY": "1"
+      }
     },
     "microsoft-learn": {
       "url": "https://learn.microsoft.com/api/mcp"

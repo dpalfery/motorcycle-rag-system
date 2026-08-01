@@ -86,8 +86,7 @@
       "Bash(codegraph query *)",
       "Bash(sqlite3 -json .codegraph/codegraph.db \"select name,qualified_name,file_path,start_line from nodes where kind='route' and name like '%me/usage%';\")",
       "Bash(npm ls *)",
-      "Bash(rtk git *)",
-      "Bash(git -C 6-Docs/agent-notes/dpalfery-apm-package remote -v)"
+      "Bash(rtk git *)"
     ],
     "deny": [
       "Bash(git commit :*)",

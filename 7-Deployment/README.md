@@ -6,7 +6,9 @@
 
 - `infrastructure/` — declarative Pulumi infrastructure source.
 - `DbSetup/` — local development database setup CLI.
+- `tools/codegraph/` — vendored, pinned CodeGraph CLI (`@colbymchenry/codegraph@1.5.0`); builds the `.codegraph/` knowledge-graph index.
 - `tools/KyberWeave/` — stub pointing at the extracted product ([dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave)); host overrides live in root `kyber-weave.yml`.
+- `tools/tokenomics/` — dev-tooling bootstrap (`setup-tokenomics.sh`): installs CodeGraph, builds/syncs the index, and verifies RTK and Kyber-Weave on PATH.
 
 ## Operating model
 

@@ -4,7 +4,7 @@ title: Deployment Configuration
 doc-type: reference
 status: current
 owner: Platform maintainers
-last-reviewed: 2026-07-26
+last-reviewed: 2026-07-28
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -131,7 +131,7 @@ flowchart LR
 
   **Coverage exclusions.** Pure data-carrier assemblies may be excluded from the per-file/per-class 85% line-coverage gate when they contain no business invariants. `MotorcycleRAG.Contracts.Models` — the shared, data-only DTO project under `3-Domain/` — is excluded: `<Exclude>[MotorcycleRAG.Contracts.Models]*</Exclude>` in `coverlet.runsettings` removes it from coverlet collection, and `"/MotorcycleRAG.Contracts.Models/"` in `coverage-config.json` `coverageExclusions.pathContains` keeps the aggregator in agreement (the exclusion fragment cannot match the sibling interfaces-only `MotorcycleRAG.Contracts` assembly, which remains fully gated). The exclusion is additive only; every other in-scope assembly is still measured. Excluding a project from the _metric_ does not remove it from the build/test pipeline: behavior-bearing members (factory methods, computed properties, validation logic, custom converters) are still directly unit-tested in `5-Test/MotorcycleRAG.Contracts.Tests/` and asserted by `dotnet test` — only the coverage number is no longer a gate input for that project. _Policy:_ pure data-carrier DTO projects may be excluded from the line gate; behavior-bearing members within them must still be directly unit-tested.
 
-- `docs-quality`: Runs markdownlint, validates documentation catalog/structure, checks internal links with lychee (offline), and scans docs changes for secrets with gitleaks. Runs only when `docs` changed.
+- `docs-quality`: Runs markdownlint, validates documentation catalog/structure, checks internal links with lychee (offline), and scans docs changes for secrets with gitleaks. When documentation changes, installs Kyber-Weave from a pinned GitHub Release (`.github/actions/install-kyber-weave`, `KYBER_WEAVE_VERSION` in the workflow env) and runs `kyber-weave docs validate` for the schema tier (`KW-DOC-SPEC-*`). Runs only when `docs` changed.
 
 #### Phase 2 — Security gate (needs build-test)
 
@@ -146,7 +146,8 @@ flowchart LR
 
 - `integration`: Runs integration tests (non-Azure, `Category!=AzureIntegration`) on the pre-built output from Phase 1.
 - `e2e`: Runs end-to-end tests with a MockServer container for external service stubs, using pre-built output.
-- `skill-gate`: Builds the Kyber-Weave CLI and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
+- `doc-graph-drift`: Installs Kyber-Weave from the pinned GitHub Release, builds or syncs the CodeGraph index, then runs `kyber-weave docs drift` and exports the documentation graph (`kyber-weave docs graph`). Runs when `code` or `docs` changed.
+- `skill-gate`: Installs Kyber-Weave from the pinned GitHub Release and validates, lints, and scans all skill directories (`.agents/skills`, `.claude/skills`, `.kilo/skills`) with SARIF upload. Currently uses `continue-on-error: true`.
 - `agent-gate`: Matrix over the six harnesses (`codex`, `cursor`, `claude`, `github`, `opencode`, `kilo`). Each leg runs `agent validate . --harness <name>` and `agent scan . --harness <name>` against the project root (harness trees discovered as `.harnessname/agents`), uploading SARIF under a unique category `kyber-weave-agent-<harness>`. Currently uses `continue-on-error: true`.
 - `agent-sync`: Runs `agent sync-check .` once across all discovered harnesses (role parity and instruction drift). Currently uses `continue-on-error: true`.
 - `skillspector-gate`: Advisory NVIDIA SkillSpector static scan (`--no-llm`) of `.agents/skills`, merged SARIF upload under category `skillspector-skills`. Uses `continue-on-error: true`; does not fail the PR gate.

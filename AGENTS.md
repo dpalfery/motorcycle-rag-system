@@ -33,7 +33,7 @@ The documentation standard defines both lifecycles in detail, and the rules for 
 
 ## Kyber-Weave
 
-**Kyber-Weave** is the name of this repository's agent-and-documentation governance framework: the CLI, library, CI gates and MCP server that govern skills, agent definitions, and documentation as one. Its premise is that every artifact shaping agent behavior is a supply-chain artifact — parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The commands named throughout this file (`kyber-weave skill|agent|docs …`) and the `KW-*` rule codes are its surface. See the [Kyber-Weave reference](6-Docs/reference/kyber-weave.md).
+**Kyber-Weave** is the name of this repository's agent-and-documentation governance framework. Product source and releases live in the external repository [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave); MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in the root `kyber-weave.yml`. Its premise is that every artifact shaping agent behavior is a supply-chain artifact — parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The commands named throughout this file (`kyber-weave skill|agent|docs …`) and the `KW-*` rule codes are its surface. See the [Kyber-Weave reference](6-Docs/reference/kyber-weave.md).
 
 ## Agent configuration synchronization
 

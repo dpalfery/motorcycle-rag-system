@@ -19,13 +19,13 @@ The organising idea is that **every artifact that shapes agent behaviour — ski
 
 ## Install
 
-| Channel | How |
-| --- | --- |
-| **GitHub Releases** | Download RID archives from [releases](https://github.com/dpalfery/kyber-weave/releases) (CI pins `v0.1.1` via `.github/actions/install-kyber-weave`) |
-| **npm** | `npm i -g @dpalfery/kyber-weave@0.1.1` (downloads Release assets; SHA-256 verified) |
-| **Homebrew** | `brew install dpalfery/kyber-weave/kyber-weave` |
+| Channel | How | Status |
+| --- | --- | --- |
+| **GitHub Releases** | Download RID archives from [releases](https://github.com/dpalfery/kyber-weave/releases) (MotorcycleRAG CI pins `0.1.1` via `.github/actions/install-kyber-weave`; SHA-256 verified) | Verified — primary host/CI channel |
+| **npm** | `npm i -g @dpalfery/kyber-weave@<version>` (wrapper downloads Release assets; SHA-256 verified) | Published when the product repo `release.yml` job has `NPM_TOKEN` configured |
+| **Homebrew** | `brew install dpalfery/kyber-weave/kyber-weave` | Published when the product repo `release.yml` job has `HOMEBREW_TAP_TOKEN` configured |
 
-Self-contained binaries — no .NET runtime required for end users. **nuget.org is forbidden.** Optional advanced channel: GitHub Packages `dotnet tool`.
+Self-contained binaries — no .NET runtime required for end users. **nuget.org is forbidden.** Optional advanced channel: GitHub Packages `dotnet tool` (product repo only).
 
 Host MCP registration (`.mcp.json`) launches `kyber-weave-mcp` from PATH with `--repo-root .`.
 

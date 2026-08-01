@@ -13,9 +13,11 @@ supersedes: []
 ---
 # Kyber-Weave Extraction
 
-**Status:** In progress  
+**Status:** Review required  
 **Date:** 2026-07-27  
 **Goal:** Extract Kyber-Weave into its own repository as a frictionless cross-ecosystem CLI/MCP (npm + GitHub Releases/Homebrew; optional GitHub Packages; nuget.org forbidden) while MotorcycleRAG consumes PATH binaries and supplies host-only overrides.
+
+**Closeout (2026-07-28):** Host cutover, canonical docs, and product repo `v0.1.1` GitHub Release verified. **Blocked on T6:** `@dpalfery/kyber-weave@0.1.1` is not on npm (product `release.yml` skips npm when `NPM_TOKEN` is unset); Homebrew tap publish not verified. Do not archive until T6 npm + Homebrew manual checks are recorded.
 
 ---
 

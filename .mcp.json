@@ -10,14 +10,8 @@
     },
     "kyber-weave": {
       "type": "stdio",
-      "command": "dotnet",
+      "command": "kyber-weave-mcp",
       "args": [
-        "run",
-        "--project",
-        "7-Deployment/tools/KyberWeave/src/KyberWeave.Mcp",
-        "-v",
-        "q",
-        "--",
         "--repo-root",
         "."
       ]

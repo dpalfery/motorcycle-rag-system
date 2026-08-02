@@ -1,7 +1,7 @@
 ---
 description: "Reviews written code for correctness, quality, and security, returning an approve / changes-requested verdict. Use after implementation is claimed complete or before a commit or pull request. Review-only: does not edit or fix code, or author tests."
 mode: subagent
-model: wafer/kimi-k2.6
+model: wafer-custom/kimi-k3
 reasoningEffort: high
 permission:
   mcp: deny

@@ -5,7 +5,7 @@ doc-type: reference
 status: current
 component: Kyber-Weave
 owner: Developer-experience maintainers
-last-reviewed: 2026-07-27
+last-reviewed: 2026-07-28
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -13,9 +13,21 @@ supersedes: []
 ---
 # Kyber-Weave Reference
 
-Kyber-Weave is this repository's agent-and-documentation governance framework: a .NET CLI, a library, and a stdio MCP server. Its source is `7-Deployment/tools/KyberWeave`.
+Kyber-Weave is this repository's agent-and-documentation governance framework: a cross-ecosystem CLI and stdio MCP server. **Product source and releases live in the external repository** [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave). MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in the root [`kyber-weave.yml`](../../kyber-weave.yml).
 
 The organising idea is that **every artifact that shapes agent behaviour — skills, agent definitions, and documentation — is a supply-chain artifact and gets the same treatment.** Each is parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The classes differ only in what their source of truth *is*: documentation answers to the code graph, an agent manifest to its sibling harness copies, a skill to the Agent Skills open format spec.
+
+## Install
+
+| Channel | How | Status |
+| --- | --- | --- |
+| **GitHub Releases** | Download RID archives from [releases](https://github.com/dpalfery/kyber-weave/releases) (MotorcycleRAG CI pins `0.1.1` via `.github/actions/install-kyber-weave`; SHA-256 verified) | Verified — primary host/CI channel |
+| **npm** | `npm i -g @dpalfery/kyber-weave@<version>` (wrapper downloads Release assets; SHA-256 verified) | Published when the product repo `release.yml` job has `NPM_TOKEN` configured |
+| **Homebrew** | `brew install dpalfery/kyber-weave/kyber-weave` | Published when the product repo `release.yml` job has `HOMEBREW_TAP_TOKEN` configured |
+
+Self-contained binaries — no .NET runtime required for end users. **nuget.org is forbidden.** Optional advanced channel: GitHub Packages `dotnet tool` (product repo only).
+
+Host MCP registration (`.mcp.json`) launches `kyber-weave-mcp` from PATH with `--repo-root .`.
 
 ## Naming hazard
 
@@ -23,7 +35,7 @@ The organising idea is that **every artifact that shapes agent behaviour — ski
 
 ## Provenance
 
-The skill-governance feature was absorbed from SkillForge, an MIT-licensed project by the SkillForge contributors. Kyber-Weave now owns that code outright: there is no upstream to track, refresh from, or contribute back to. The MIT licence under which it was received is retained in [LICENSE](../../7-Deployment/tools/KyberWeave/LICENSE), and the attribution is recorded in [NOTICE](../../7-Deployment/tools/KyberWeave/NOTICE).
+The skill-governance feature was absorbed from **[SkillForge](https://github.com/bonaniibm/SkillForge)** ([bonaniibm/SkillForge](https://github.com/bonaniibm/SkillForge)), an MIT-licensed project by the SkillForge contributors. Kyber-Weave now owns that code in [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave): there is no upstream to track, refresh from, or contribute back to, and no ongoing sync with the originating repository. The MIT licence and SkillForge attribution are retained in that product's [LICENSE](https://github.com/dpalfery/kyber-weave/blob/main/LICENSE) and [NOTICE](https://github.com/dpalfery/kyber-weave/blob/main/NOTICE).
 
 ## Use
 
@@ -83,7 +95,7 @@ That invocation deliberately does **not** pass `-readonly`. The CodeGraph daemon
 
 ## The MCP server
 
-`KyberWeave.Mcp` is a stdio MCP server registered in `.mcp.json` as `kyber-weave` and launched with `dotnet run --project`, so it is always current and needs no install step. Its tools surface to agents as `mcp__kyber-weave__docs_explore` and `mcp__kyber-weave__docs_for_symbol`.
+`kyber-weave-mcp` is a stdio MCP server registered in `.mcp.json` as `kyber-weave` and launched from PATH (install via Releases / npm / Homebrew). Its tools surface to agents as `mcp__kyber-weave__docs_explore` and `mcp__kyber-weave__docs_for_symbol`.
 
 It is a separate executable rather than a `kyber-weave mcp` subcommand: stdio JSON-RPC owns stdout and the CLI is built on Spectre.Console, which writes there. A separate entry point makes stream corruption structurally impossible instead of a matter of discipline. All logging is pinned to stderr.
 
@@ -152,7 +164,7 @@ A document must clear a relevance floor to be returned at all. Without one, ever
 
 When nothing clears the floor the response says so explicitly and names the fallbacks. The header on a successful call reports the relevance range, so a weak match is visibly weak rather than presented with the same confidence as a strong one.
 
-Retrieval quality is pinned by a regression suite in `KyberWeave.Tests` that runs against the **real** corpus: plainly-worded questions paired with the document that answers them, asserted as "expected document in the top three", plus unanswerable questions asserted to return nothing. A synthetic fixture cannot catch the failure that matters, because the failure is a property of a real body of documents all about one system. The suite skips rather than fails when it cannot find the repository.
+Retrieval quality is pinned by a regression suite in the product repository's `KyberWeave.Tests` that runs against the **real** MotorcycleRAG corpus when that tree is present: plainly-worded questions paired with the document that answers them, asserted as "expected document in the top three", plus unanswerable questions asserted to return nothing. A synthetic fixture cannot catch the failure that matters, because the failure is a property of a real body of documents all about one system. The suite skips rather than fails when it cannot find the host repository.
 
 ### Staleness
 
@@ -168,6 +180,10 @@ Shipping a retrieval tool does not make agents reach for it. MCP tool selection 
 
 The rule names the fallback explicitly because neither tool has a CLI equivalent: when the MCP server is not connected, agents fall back to the documentation index and say so. A stronger option — a `UserPromptSubmit` hook that pre-injects `docs_explore` results the way the CodeGraph hook does — was considered and not adopted, because it adds latency and tokens to every prompt regardless of whether the prompt concerns documentation.
 
+## Host overrides
+
+This repository's root [`kyber-weave.yml`](../../kyber-weave.yml) supplies MotorcycleRAG-specific ontology and harness policy (docs root `6-Docs`, catalog column mapping, vendored-file exclusions, conductor→skill satisfaction). Product defaults ship without those host mappings.
+
 ## Deferred
 
-Config-driven ontology (a `kyber-weave.yml` replacing the `DocType` enum, required-key matrix, exclusion lists and catalog column positions); a pluggable code-graph backend; `agent_explore` and `skill_explore`; wiring the remaining unwired agent subcommands (`route`, `lint`, `new`); moving the framework to its own repository; publishing as a `dotnet tool` or NuGet package.
+`agent_explore` and `skill_explore`; wiring the remaining unwired agent subcommands (`route`, `lint`, `new`). Ontology config and the CodeGraph adapter shipped with the extracted product.

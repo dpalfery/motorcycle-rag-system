@@ -4,7 +4,7 @@ title: Plan Index
 doc-type: index
 status: current
 owner: Maintainers
-last-reviewed: 2026-07-26
+last-reviewed: 2026-07-28
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -27,6 +27,7 @@ Read this file before opening a plan. Open a plan only when it is both relevant 
 
 | Plan | Status | Goal |
 | --- | --- | --- |
+| [2026-07-27 Kyber-Weave Extraction](2026-07-27-kyber-weave-extraction.md) | Review required | Extract Kyber-Weave to `dpalfery/kyber-weave`; frictionless multi-channel install (npm + GitHub Releases/Homebrew first-class; GitHub Packages optional; nuget.org forbidden); self-contained RID binaries; MotorcycleRAG consumes PATH CLI/MCP. **Closeout 2026-07-28:** host cutover + Release `v0.1.1` verified; **T6 open** — npm `@dpalfery/kyber-weave@0.1.1` not on registry; Homebrew not verified. |
 | [2026-07-21 Documentation Graph Ontology and Frontmatter Governance](2026-07-21-documentation-graph-ontology.md) | In progress | Give `6-Docs/` a closed ontology in human-readable frontmatter that joins deterministically to CodeGraph node identities, evict non-documentation from the documentation root, and CI-enforce both schema conformance and code-entity drift through Kyber-Weave (named SkillForge when this plan was written). |
 | [2026-07-18 Security and Quality Alert Remediation](2026-07-18-security-quality-remediation.md) | Review required | Local T0–T15 implemented; canonical docs updated. T16 partial: #399 dismissed (`used in tests`); #401 awaits post-merge Semgrep. Not archived: T16/#401, T17 (legacy CodeQL logging volume on develop), and remaining T19 GitHub gates remain open. CodeQL per-language matrix (former T18) was delivered by the archived 2026-07-19 residual plan — do not treat this 2026-07-18 plan as closed by that work. |
 | ~~2026-07-18 Snyk CWE-117 log forging — central provider remediation~~ | Archived | Completed 2026-07-18. SanitizingLoggerProvider + SanitizingLogger in MotorcycleRAG.Core.Logging, registered in all 5 .NET hosts. 126+ per-call LogSanitizer.Sanitize sites decommissioned; BFF SanitizeLogValue helper removed. DbSetup SanitizingLogger<T>/SecureLoggerExtensions deleted. 29 core tests + 8 registration-gate tests passing. Canonical guidance updated in 6-Docs/system/security.md §Log value encoding. |

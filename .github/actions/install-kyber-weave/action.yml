@@ -1,0 +1,82 @@
+# Install self-contained Kyber-Weave CLI (+ MCP) from a pinned GitHub Release.
+# Prefer Release assets so CI works without NPM_TOKEN / published npm package.
+name: Install Kyber-Weave
+description: Download and install kyber-weave / kyber-weave-mcp from a GitHub Release
+
+inputs:
+  version:
+    description: SemVer without leading v (e.g. 0.1.0). Tag is v${version}.
+    required: true
+  install-mcp:
+    description: Also install kyber-weave-mcp onto PATH
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Download and install Kyber-Weave binaries
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        INSTALL_MCP: ${{ inputs.install-mcp }}
+      run: |
+        set -euo pipefail
+        TAG="v${VERSION}"
+        BASE="https://github.com/dpalfery/kyber-weave/releases/download/${TAG}"
+        case "$(uname -s)-$(uname -m)" in
+          Linux-x86_64) RID=linux-x64 ;;
+          Linux-aarch64|Linux-arm64) RID=linux-arm64 ;;
+          Darwin-arm64) RID=osx-arm64 ;;
+          Darwin-x86_64) RID=osx-x64 ;;
+          *)
+            echo "::error::Unsupported runner platform $(uname -s)-$(uname -m)"
+            exit 1
+            ;;
+        esac
+
+        WORK="${RUNNER_TEMP:-/tmp}/kyber-weave-${TAG}-${RID}"
+        mkdir -p "${WORK}"
+        cd "${WORK}"
+
+        curl -fsSL -o SHA256SUMS.txt "${BASE}/SHA256SUMS.txt"
+        curl -fsSL -o "kyber-weave-${RID}.tar.gz" "${BASE}/kyber-weave-${RID}.tar.gz"
+        if [ "${INSTALL_MCP}" = "true" ]
+        then
+          curl -fsSL -o "kyber-weave-mcp-${RID}.tar.gz" "${BASE}/kyber-weave-mcp-${RID}.tar.gz"
+        fi
+
+        verify() {
+          local archive="$1"
+          local expected
+          expected=$(awk -v f="${archive}" '
+            $2 == f { print tolower($1); exit }
+            $2 == "*" f { print tolower($1); exit }
+          ' SHA256SUMS.txt)
+          if [ -z "${expected}" ]
+          then
+            echo "::error::SHA256SUMS.txt has no entry for ${archive}"
+            exit 1
+          fi
+          local actual
+          actual=$(sha256sum "${archive}" | awk '{ print tolower($1) }')
+          if [ "${actual}" != "${expected}" ]
+          then
+            echo "::error::SHA256 mismatch for ${archive}: expected ${expected}, got ${actual}"
+            exit 1
+          fi
+        }
+
+        verify "kyber-weave-${RID}.tar.gz"
+        tar -xzf "kyber-weave-${RID}.tar.gz"
+        sudo install -m 755 kyber-weave /usr/local/bin/kyber-weave
+
+        if [ "${INSTALL_MCP}" = "true" ]
+        then
+          verify "kyber-weave-mcp-${RID}.tar.gz"
+          tar -xzf "kyber-weave-mcp-${RID}.tar.gz"
+          sudo install -m 755 kyber-weave-mcp /usr/local/bin/kyber-weave-mcp
+        fi
+
+        kyber-weave --help >/dev/null
+        echo "Installed Kyber-Weave ${TAG} (${RID}) to /usr/local/bin"

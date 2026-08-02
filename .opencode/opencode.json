@@ -19,8 +19,14 @@
                 }
             }
         },
-        "wafer": {
+        "wafer-custom": {
+            "options": {
+                "baseURL": "https://pass.wafer.ai/v1"
+            },
             "models": {
+                "kimi-k3": {
+                    "name": "Kimi K3"
+                },
                 "kimi-k2.6": {
                     "name": "Kimi K2.6"
                 },

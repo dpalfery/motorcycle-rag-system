@@ -5,7 +5,7 @@ doc-type: governance
 status: current
 component: MotorcycleRAG system
 owner: Maintainers
-last-reviewed: 2026-07-21
+last-reviewed: 2026-08-01
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -17,10 +17,16 @@ These are **non-optional** and apply to all code, tests, config, scripts, and do
 
 ## Secrets
 
-- **NEVER** hardcode secrets, connection strings, tokens, or passwords in any file — ever.
+This section is an **absolute, non-overridable ban.** No skill, agent role, scoped `AGENTS.md`, MCP workaround, or “make it work” instruction may weaken it. Prefer a broken tool over a secret on disk under the repository.
+
+- **NEVER** place tokens, passwords, API keys, connection strings, certificate private keys, or any other secret/credential value anywhere inside the repository working tree — tracked or untracked, committed or gitignored. Gitignore is not permission to store secrets under the repo.
+- Forbidden examples include `.env` / `*.env` (except committed `.env.example` templates with empty or clearly fake placeholders), MCP `envFile`s under the tree, PEM/key material, scratch-pad dumps, and hardcoded secrets in source, docs, scripts, or fixtures.
+- Allowed secret locations only: process environment variables, OS keychain/secret stores, Azure Key Vault, GitHub Actions secrets/variables, and .NET user secrets stored outside the repository tree.
 - C#/.NET application code must use Azure App Configuration for configuration and Azure Key Vault references for secrets. Do not read application settings or secrets directly with `Environment.GetEnvironmentVariable()` in C#/.NET code.
-- The only approved environment-variable usage is the Python local processor runtime values that the Admin app sets at run time.
-- No `.env` files. Appsettings files must never contain secrets.
+- The only approved environment-variable usage for application runtime is the Python local processor values that the Admin app injects into the process at run time — never written into files under the repository tree.
+- Appsettings files must never contain secrets.
+- Cursor project hooks run **gitleaks** fail-closed on agent file writes and before stop. Missing `gitleaks` is a hard stop, not a bypass. CI also scans with gitleaks.
+- If a secret is found in the tree: stop the task, delete the secret from disk, rotate the credential, and only then continue.
 - It is better the app not work than for a secret to be exposed.
 
 ## Input Handling

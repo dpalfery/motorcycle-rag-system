@@ -12,6 +12,6 @@ repos:
         description: Run Kyber-Weave skill validate, lint, and scan on all skill directories
         entry: bash 7-Deployment/scripts/kyber-weave-validate.sh
         language: system
-        files: '^(\.agents/skills/|\.claude/skills/|\.kilo/skills/|7-Deployment/scripts/kyber-weave-validate\.sh$|7-Deployment/tools/KyberWeave/|\.gitmodules$)'
+        files: '^(\.agents/skills/|\.claude/skills/|\.kilo/skills/|7-Deployment/scripts/kyber-weave-validate\.sh$|kyber-weave\.yml$)'
         pass_filenames: false
         always_run: false

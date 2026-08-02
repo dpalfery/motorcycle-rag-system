@@ -1,7 +1,7 @@
 ---
 description: "CI/CD ownership: GitHub Actions workflows, Docker build configuration, environment secrets, and branch protection. Use for build, pipeline, or deployment configuration. Does not provision cloud infrastructure or investigate live cloud resource state."
 mode: subagent
-model: wafer/MiniMax-M3
+model: wafer-custom/MiniMax-M3
 reasoningEffort: medium
 permission:
   external_directory: deny

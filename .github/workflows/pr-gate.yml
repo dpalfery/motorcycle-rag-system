@@ -23,6 +23,8 @@ permissions:
 
 env:
   DOTNET_VERSION: '10.0.x'
+  # Pinned Kyber-Weave Release (SemVer without leading v). Install via composite action.
+  KYBER_WEAVE_VERSION: '0.1.1'
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────
@@ -58,8 +60,7 @@ jobs:
               - '**/AGENTS.md'
               - '7-Deployment/scripts/validate-docs.sh'
               - '.markdownlint-cli2.yaml'
-              - '7-Deployment/tools/KyberWeave/src/KyberWeave.Core/Docs/**'
-              - '7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/Commands/Docs/**'
+              - 'kyber-weave.yml'
             infra:
               - '.github/**'
               - '7-Deployment/**'
@@ -203,15 +204,14 @@ jobs:
 
       # Schema tier of the documentation ontology (KW-DOC-SPEC-*). Needs no code
       # index, so it runs on every documentation change.
-      - name: Set up .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Install Kyber-Weave
+        uses: ./.github/actions/install-kyber-weave
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          version: ${{ env.KYBER_WEAVE_VERSION }}
+          install-mcp: "false"
 
       - name: Validate documentation frontmatter
-        run: >-
-          dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli
-          -- docs validate . --format table
+        run: kyber-weave docs validate . --format table
 
       - name: Check internal documentation links
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
@@ -603,22 +603,20 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Install Kyber-Weave
+        uses: ./.github/actions/install-kyber-weave
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Build Kyber-Weave
-        run: dotnet build 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/KyberWeave.Cli.csproj -c Release
+          version: ${{ env.KYBER_WEAVE_VERSION }}
+          install-mcp: "false"
 
       - name: Validate .agents/skills
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .agents/skills --format table
+        run: kyber-weave skill validate .agents/skills --format table
 
       - name: Lint .agents/skills
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .agents/skills --min-desc-score 70 --format table
+        run: kyber-weave skill lint .agents/skills --min-desc-score 70 --format table
 
       - name: Scan .agents/skills (SARIF)
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .agents/skills --fail-on critical --format sarif > kyber-weave-agents.sarif
+        run: kyber-weave skill scan .agents/skills --fail-on critical --format sarif > kyber-weave-agents.sarif
 
       - name: Upload .agents/skills SARIF
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
@@ -627,13 +625,13 @@ jobs:
           category: kyber-weave-agents
 
       - name: Validate .claude/skills
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .claude/skills --format table
+        run: kyber-weave skill validate .claude/skills --format table
 
       - name: Lint .claude/skills
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .claude/skills --min-desc-score 70 --format table
+        run: kyber-weave skill lint .claude/skills --min-desc-score 70 --format table
 
       - name: Scan .claude/skills (SARIF)
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .claude/skills --fail-on critical --format sarif > kyber-weave-claude.sarif
+        run: kyber-weave skill scan .claude/skills --fail-on critical --format sarif > kyber-weave-claude.sarif
 
       - name: Upload .claude/skills SARIF
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
@@ -642,13 +640,13 @@ jobs:
           category: kyber-weave-claude
 
       - name: Validate .kilo/skills
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill validate .kilo/skills --format table
+        run: kyber-weave skill validate .kilo/skills --format table
 
       - name: Lint .kilo/skills
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill lint .kilo/skills --min-desc-score 70 --format table
+        run: kyber-weave skill lint .kilo/skills --min-desc-score 70 --format table
 
       - name: Scan .kilo/skills (SARIF)
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- skill scan .kilo/skills --fail-on critical --format sarif > kyber-weave-kilo.sarif
+        run: kyber-weave skill scan .kilo/skills --fail-on critical --format sarif > kyber-weave-kilo.sarif
 
       - name: Upload .kilo/skills SARIF
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
@@ -672,19 +670,17 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Install Kyber-Weave
+        uses: ./.github/actions/install-kyber-weave
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Build Kyber-Weave
-        run: dotnet build 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/KyberWeave.Cli.csproj -c Release
+          version: ${{ env.KYBER_WEAVE_VERSION }}
+          install-mcp: "false"
 
       - name: Validate agents (${{ matrix.harness }})
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- agent validate . --harness ${{ matrix.harness }} --format table
+        run: kyber-weave agent validate . --harness ${{ matrix.harness }} --format table
 
       - name: Scan agents SARIF (${{ matrix.harness }})
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- agent scan . --harness ${{ matrix.harness }} --fail-on critical --format sarif > kyber-weave-agent-${{ matrix.harness }}.sarif
+        run: kyber-weave agent scan . --harness ${{ matrix.harness }} --fail-on critical --format sarif > kyber-weave-agent-${{ matrix.harness }}.sarif
 
       - name: Upload agents SARIF (${{ matrix.harness }})
         uses: github/codeql-action/upload-sarif@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
@@ -704,16 +700,14 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Install Kyber-Weave
+        uses: ./.github/actions/install-kyber-weave
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Build Kyber-Weave
-        run: dotnet build 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli/KyberWeave.Cli.csproj -c Release
+          version: ${{ env.KYBER_WEAVE_VERSION }}
+          install-mcp: "false"
 
       - name: Cross-harness sync-check
-        run: dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli -c Release --no-build -- agent sync-check . --format table
+        run: kyber-weave agent sync-check . --format table
 
   # Advisory semantic skill scan (NVIDIA SkillSpector, static / --no-llm).
   # Complements Kyber-Weave KW-*-SEC regex heuristics; does not block the gate.
@@ -792,10 +786,11 @@ jobs:
         with:
           node-version: 22
 
-      - name: Set up .NET
-        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      - name: Install Kyber-Weave
+        uses: ./.github/actions/install-kyber-weave
         with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+          version: ${{ env.KYBER_WEAVE_VERSION }}
+          install-mcp: "false"
 
       # A cold index is ~1,100 files. Cache it keyed on the tracked source tree so
       # the common case is an incremental `codegraph sync`, not a full rebuild.
@@ -831,14 +826,10 @@ jobs:
           fi
 
       - name: Verify documentation entity drift
-        run: >-
-          dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli
-          -- docs drift . --format table
+        run: kyber-weave docs drift . --format table
 
       - name: Export the documentation graph
-        run: >-
-          dotnet run --project 7-Deployment/tools/KyberWeave/src/KyberWeave.Cli
-          -- docs graph . --out ./build/doc-graph
+        run: kyber-weave docs graph . --out ./build/doc-graph
 
       - name: Upload the documentation graph
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7

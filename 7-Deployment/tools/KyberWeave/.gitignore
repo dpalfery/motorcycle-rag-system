@@ -1,9 +1,0 @@
-bin/
-obj/
-*.user
-.vs/
-nupkg/
-*.nupkg
-/TestResults/
-*.sarif
-.DS_Store

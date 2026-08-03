@@ -91,6 +91,7 @@ public sealed class ControllerUseCaseServicesTests
             Mock.Of<IIndexedChunkRepository>(),
             tokenService.Object,
             Mock.Of<IIngestionJobService>(),
+            Mock.Of<IManualDocumentRepository>(),
             NullLogger<ProcessorArtifactService>.Instance);
 
         var result = await service.DownloadSourceAsync("00000000-0000-0000-0000-000000000001", "manual-pdf", "invalid");

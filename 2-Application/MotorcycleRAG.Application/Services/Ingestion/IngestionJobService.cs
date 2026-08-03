@@ -38,6 +38,7 @@ public sealed class IngestionJobService : IIngestionJobService {
     private readonly BlobStorageOptions _blobStorageOptions;
     private readonly IGraphEntityIngestionService _graphEntityIngestionService;
     private readonly GraphIngestionChannel _graphIngestionChannel;
+    private readonly ManualBikeLinker _manualBikeLinker;
     private readonly IngestionOptions _options;
     private readonly ILogger<IngestionJobService> _logger;
 
@@ -50,6 +51,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         IGraphRepository graphRepository,
         IGraphEntityIngestionService graphEntityIngestionService,
         GraphIngestionChannel graphIngestionChannel,
+        ManualBikeLinker manualBikeLinker,
         IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> options,
         ILogger<IngestionJobService> logger) {
@@ -61,6 +63,7 @@ public sealed class IngestionJobService : IIngestionJobService {
         _graphRepository = graphRepository ?? throw new ArgumentNullException(nameof(graphRepository));
         _graphEntityIngestionService = graphEntityIngestionService ?? throw new ArgumentNullException(nameof(graphEntityIngestionService));
         _graphIngestionChannel = graphIngestionChannel ?? throw new ArgumentNullException(nameof(graphIngestionChannel));
+        _manualBikeLinker = manualBikeLinker ?? throw new ArgumentNullException(nameof(manualBikeLinker));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -467,6 +470,50 @@ public sealed class IngestionJobService : IIngestionJobService {
     private async Task RunGraphIngestionAsync(IngestionJob job, string uploadId) {
         try {
             await _graphEntityIngestionService.IngestAsync(uploadId, CancellationToken.None).ConfigureAwait(false);
+
+            // D5: Link manual document to bike model if present and metadata is parseable.
+            // Missing/unparseable metadata is a no-op with a log line — never a thrown exception.
+            // BLOCKING #1 FIX: Move linking BEFORE job.Complete() so linker exceptions can call job.Fail()
+            // while the job is still non-terminal (see IngestionJob.EnsureTransitionAllowed).
+            if (job.ManualDocumentId.HasValue) {
+                if (!string.IsNullOrWhiteSpace(job.MetadataJson)) {
+                    var parsed = TryParseMetadata(job.MetadataJson);
+                    if (parsed is not null
+                        && !string.IsNullOrWhiteSpace(parsed.Make)
+                        && !string.IsNullOrWhiteSpace(parsed.Model)
+                        && parsed.Year.HasValue && parsed.Year.Value > 0) {
+                        await _manualBikeLinker.LinkAsync(
+                            job.ManualDocumentId.Value,
+                            parsed.Make,
+                            parsed.Model,
+                            parsed.Year.Value,
+                            CancellationToken.None).ConfigureAwait(false);
+                    }
+                    else if (parsed is null) {
+                        // BLOCKING #3 FIX: Log malformed JSON
+                        _logger.LogWarning(
+                            "Manual document {ManualId} ingested but metadata JSON could not be parsed for linking to bike model.",
+                            LogSanitizer.Sanitize(job.ManualDocumentId.Value));  // codeql[cs/log-forging]
+                    }
+                    else {
+                        // BLOCKING #3 FIX: Log incomplete/invalid metadata (parsed successfully but missing/invalid fields)
+                        _logger.LogWarning(
+                            "Manual document {ManualId} ingested but metadata is incomplete or invalid for linking (Make/Model/Year required). " +
+                            "Make: {Make}, Model: {Model}, Year: {Year}",
+                            LogSanitizer.Sanitize(job.ManualDocumentId.Value),  // codeql[cs/log-forging]
+                            LogSanitizer.Sanitize(parsed.Make ?? "(null)"),  // codeql[cs/log-forging]
+                            LogSanitizer.Sanitize(parsed.Model ?? "(null)"),  // codeql[cs/log-forging]
+                            parsed.Year);
+                    }
+                }
+                else {
+                    // BLOCKING #3 FIX: Log when metadata is missing/blank
+                    _logger.LogWarning(
+                        "Manual document {ManualId} ingested but no metadata JSON is present for linking to bike model.",
+                        LogSanitizer.Sanitize(job.ManualDocumentId.Value));  // codeql[cs/log-forging]
+                }
+            }
+
             job.Complete();
         }
         catch (Exception ex) {

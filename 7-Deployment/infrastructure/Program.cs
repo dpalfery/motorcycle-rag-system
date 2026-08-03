@@ -1079,6 +1079,11 @@ namespace MotorcycleRAG.Infrastructure {
                     new Dictionary<string, object?> { ["name"] = "section", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "pageRange", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "primarySection", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
+                    // Anchor identifiers (plan 2026-08-01-vector-graph-anchor-id-contract, T9/D6):
+                    // opaque GUIDs and a content hash — filterable for deterministic lookup, not searchable.
+                    new Dictionary<string, object?> { ["name"] = "indexedArtifactId", ["type"] = "Edm.String", ["filterable"] = true },
+                    new Dictionary<string, object?> { ["name"] = "ingestionJobId", ["type"] = "Edm.String", ["filterable"] = true },
+                    new Dictionary<string, object?> { ["name"] = "sourceContentHash", ["type"] = "Edm.String", ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "sectionHeadings", ["type"] = "Collection(Edm.String)", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "tableCaption", ["type"] = "Edm.String", ["searchable"] = true, ["filterable"] = true },
                     new Dictionary<string, object?> { ["name"] = "tags", ["type"] = "Collection(Edm.String)", ["searchable"] = true, ["filterable"] = true },

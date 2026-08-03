@@ -189,6 +189,19 @@ public class AzureSearchQueryService : IAzureSearchQueryService
             foreach (var h in doc.Highlights)
                 outDoc.Highlights.Add(h);
 
+            // T9/T10: project the three vector→graph anchor fields. The index carries
+            // them as top-level filterable fields; the Azure SDK deserializer populates
+            // the matching SearchResult properties. Without this projection into
+            // Metadata the anchor is silently dropped (STJ populates the property but
+            // nothing else surfaces it), which makes the retrieval-time vector→graph hop
+            // dead in production. See plan 2026-08-01-vector-graph-anchor-id-contract §4 T10.
+            if (doc.IndexedArtifactId is not null)
+                outDoc.Metadata["indexedArtifactId"] = doc.IndexedArtifactId;
+            if (doc.IngestionJobId is not null)
+                outDoc.Metadata["ingestionJobId"] = doc.IngestionJobId;
+            if (doc.SourceContentHash is not null)
+                outDoc.Metadata["sourceContentHash"] = doc.SourceContentHash;
+
             results.Add(outDoc);
         }
 

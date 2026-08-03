@@ -13,13 +13,36 @@ namespace MotorcycleRAG.Persistence.Sql.Repositories;
 /// <remarks>
 /// SQL Server Graph AS EDGE tables use $from_id/$to_id internally.
 /// This implementation uses explicit <c>FromNodeId</c>/<c>ToNodeId</c> GUID columns
-/// added alongside the AS EDGE syntax in <c>GraphTablesMigration.sql</c>.
-/// If those columns are missing from the schema, apply the migration first.
+/// added alongside the AS EDGE syntax in <c>schema.sql</c> (the single deployed
+/// source that provisions a fresh database). If those columns are missing from the
+/// schema, the <c>schema.sql</c> revision in use is out of date.
 /// </remarks>
 public class SqlGraphRepository : IGraphRepository
 {
     private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<SqlGraphRepository> _logger;
+
+    /// <summary>
+    /// Single MERGE statement for upserting a <see cref="GraphNodeDto"/> by <c>Id</c>.
+    /// Consumed by both <see cref="UpsertNodeAsync"/> and <see cref="UpsertNodesAsync"/> so a new
+    /// anchor column is added once, not twice.
+    /// </summary>
+    private const string UpsertNodeMergeSql = @"
+        MERGE [dbo].[GraphNode] AS target
+        USING (SELECT @Id AS [Id]) AS source ON target.[Id] = source.[Id]
+        WHEN MATCHED THEN
+            UPDATE SET
+                [Name]              = @Name,
+                [Type]              = @Type,
+                [Description]       = @Description,
+                [SourceDocumentId]  = @SourceDocumentId,
+                [ChunkId]           = @ChunkId,
+                [SourceContentHash] = @SourceContentHash,
+                [UpdatedAtUtc]      = @UpdatedAtUtc
+        WHEN NOT MATCHED THEN
+            INSERT ([Id], [Name], [Type], [Description], [SourceDocumentId], [ChunkId], [SourceContentHash], [CreatedAtUtc])
+            VALUES (@Id,  @Name,  @Type,  @Description,  @SourceDocumentId,  @ChunkId,  @SourceContentHash,  @CreatedAtUtc);
+    ";
 
     public SqlGraphRepository(
         ISqlConnectionFactory connectionFactory,
@@ -34,31 +57,18 @@ public class SqlGraphRepository : IGraphRepository
     {
         ArgumentNullException.ThrowIfNull(node);
 
-        const string sql = @"
-            MERGE [dbo].[GraphNode] AS target
-            USING (SELECT @Id AS [Id]) AS source ON target.[Id] = source.[Id]
-            WHEN MATCHED THEN
-                UPDATE SET
-                    [Name]             = @Name,
-                    [Type]             = @Type,
-                    [Description]      = @Description,
-                    [SourceDocumentId] = @SourceDocumentId,
-                    [UpdatedAtUtc]     = @UpdatedAtUtc
-            WHEN NOT MATCHED THEN
-                INSERT ([Id], [Name], [Type], [Description], [SourceDocumentId], [CreatedAtUtc])
-                VALUES (@Id,  @Name,  @Type,  @Description,  @SourceDocumentId,  @CreatedAtUtc);
-        ";
-
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
-            await connection.ExecuteAsync(new CommandDefinition(sql, new
+            await connection.ExecuteAsync(new CommandDefinition(UpsertNodeMergeSql, new
             {
                 node.Id,
                 node.Name,
                 node.Type,
                 node.Description,
                 node.SourceDocumentId,
+                node.ChunkId,
+                node.SourceContentHash,
                 CreatedAtUtc = node.CreatedAtUtc.UtcDateTime,
                 UpdatedAtUtc = node.UpdatedAtUtc?.UtcDateTime ?? DateTime.UtcNow
             }, cancellationToken: cancellationToken));
@@ -80,21 +90,6 @@ public class SqlGraphRepository : IGraphRepository
         ArgumentNullException.ThrowIfNull(nodes);
         if (nodes.Count == 0) return;
 
-        const string sql = @"
-            MERGE [dbo].[GraphNode] AS target
-            USING (SELECT @Id AS [Id]) AS source ON target.[Id] = source.[Id]
-            WHEN MATCHED THEN
-                UPDATE SET
-                    [Name]             = @Name,
-                    [Type]             = @Type,
-                    [Description]      = @Description,
-                    [SourceDocumentId] = @SourceDocumentId,
-                    [UpdatedAtUtc]     = @UpdatedAtUtc
-            WHEN NOT MATCHED THEN
-                INSERT ([Id], [Name], [Type], [Description], [SourceDocumentId], [CreatedAtUtc])
-                VALUES (@Id,  @Name,  @Type,  @Description,  @SourceDocumentId,  @CreatedAtUtc);
-        ";
-
         try
         {
             using var connection = await _connectionFactory.CreateOpenConnectionAsync();
@@ -103,13 +98,15 @@ public class SqlGraphRepository : IGraphRepository
             {
                 foreach (var node in nodes)
                 {
-                    await connection.ExecuteAsync(new CommandDefinition(sql, new
+                    await connection.ExecuteAsync(new CommandDefinition(UpsertNodeMergeSql, new
                     {
                         node.Id,
                         node.Name,
                         node.Type,
                         node.Description,
                         node.SourceDocumentId,
+                        node.ChunkId,
+                        node.SourceContentHash,
                         CreatedAtUtc = node.CreatedAtUtc.UtcDateTime,
                         UpdatedAtUtc = node.UpdatedAtUtc?.UtcDateTime ?? DateTime.UtcNow
                     }, transaction, cancellationToken: cancellationToken));
@@ -142,7 +139,8 @@ public class SqlGraphRepository : IGraphRepository
 
         // TODO: SQL Server Graph AS EDGE tables use $from_id/$to_id internally.
         // This implementation uses explicit FromNodeId/ToNodeId columns added to the AS EDGE table.
-        // See GraphTablesMigration.sql — if those columns are absent, apply the schema migration first.
+        // These columns are declared in schema.sql — if they are absent, the schema.sql revision in
+        // use is out of date.
         const string sql = @"
             IF NOT EXISTS (
                 SELECT 1 FROM [dbo].[GraphEdge]
@@ -350,11 +348,11 @@ public class SqlGraphRepository : IGraphRepository
 
         var hasTypeFilter = !string.IsNullOrWhiteSpace(typeFilter);
         var sql = hasTypeFilter
-            ? @"SELECT TOP(@MaxResults) [Id], [Name], [Type], [Description], [SourceDocumentId], [CreatedAtUtc], [UpdatedAtUtc]
+            ? @"SELECT TOP(@MaxResults) [Id], [Name], [Type], [Description], [SourceDocumentId], [ChunkId], [SourceContentHash], [CreatedAtUtc], [UpdatedAtUtc]
                 FROM [dbo].[GraphNode]
                 WHERE [Name] LIKE @Pattern AND [Type] = @TypeFilter
                 ORDER BY [Name];"
-            : @"SELECT TOP(@MaxResults) [Id], [Name], [Type], [Description], [SourceDocumentId], [CreatedAtUtc], [UpdatedAtUtc]
+            : @"SELECT TOP(@MaxResults) [Id], [Name], [Type], [Description], [SourceDocumentId], [ChunkId], [SourceContentHash], [CreatedAtUtc], [UpdatedAtUtc]
                 FROM [dbo].[GraphNode]
                 WHERE [Name] LIKE @Pattern
                 ORDER BY [Name];";
@@ -388,22 +386,19 @@ public class SqlGraphRepository : IGraphRepository
         CancellationToken cancellationToken = default)
     {
         var hasRelFilter = !string.IsNullOrWhiteSpace(relationshipTypeFilter);
-        var sql = hasRelFilter
-            ? @"SELECT
-                    n1.[Id] AS FromId, n1.[Name] AS FromName, n1.[Type] AS FromType, n1.[Description] AS FromDescription, n1.[SourceDocumentId] AS FromSourceDocumentId, n1.[CreatedAtUtc] AS FromCreatedAtUtc, n1.[UpdatedAtUtc] AS FromUpdatedAtUtc,
+        // Single SELECT literal with a conditional relationship-type predicate (mirrors the
+        // SearchNodesAsync conditional-AND pattern above). Folding two near-identical
+        // literals that differed only by the trailing AND e.[RelationshipType] = @RelFilter;
+        // (plan 6-Docs/plans/2026-08-02-anchor-id-debt-cleanup.md task T4).
+        var sql = @"SELECT
+                    n1.[Id] AS FromId, n1.[Name] AS FromName, n1.[Type] AS FromType, n1.[Description] AS FromDescription, n1.[SourceDocumentId] AS FromSourceDocumentId, n1.[ChunkId] AS FromChunkId, n1.[SourceContentHash] AS FromSourceContentHash, n1.[CreatedAtUtc] AS FromCreatedAtUtc, n1.[UpdatedAtUtc] AS FromUpdatedAtUtc,
                     e.[RelationshipType], e.[Weight], e.[Context],
-                    n2.[Id] AS ToId, n2.[Name] AS ToName, n2.[Type] AS ToType, n2.[Description] AS ToDescription, n2.[SourceDocumentId] AS ToSourceDocumentId, n2.[CreatedAtUtc] AS ToCreatedAtUtc, n2.[UpdatedAtUtc] AS ToUpdatedAtUtc
+                    n2.[Id] AS ToId, n2.[Name] AS ToName, n2.[Type] AS ToType, n2.[Description] AS ToDescription, n2.[SourceDocumentId] AS ToSourceDocumentId, n2.[ChunkId] AS ToChunkId, n2.[SourceContentHash] AS ToSourceContentHash, n2.[CreatedAtUtc] AS ToCreatedAtUtc, n2.[UpdatedAtUtc] AS ToUpdatedAtUtc
                 FROM [dbo].[GraphNode] AS n1, [dbo].[GraphEdge] AS e, [dbo].[GraphNode] AS n2
                 WHERE MATCH(n1-(e)->n2)
-                  AND n1.[Id] = @NodeId
-                  AND e.[RelationshipType] = @RelFilter;"
-            : @"SELECT
-                    n1.[Id] AS FromId, n1.[Name] AS FromName, n1.[Type] AS FromType, n1.[Description] AS FromDescription, n1.[SourceDocumentId] AS FromSourceDocumentId, n1.[CreatedAtUtc] AS FromCreatedAtUtc, n1.[UpdatedAtUtc] AS FromUpdatedAtUtc,
-                    e.[RelationshipType], e.[Weight], e.[Context],
-                    n2.[Id] AS ToId, n2.[Name] AS ToName, n2.[Type] AS ToType, n2.[Description] AS ToDescription, n2.[SourceDocumentId] AS ToSourceDocumentId, n2.[CreatedAtUtc] AS ToCreatedAtUtc, n2.[UpdatedAtUtc] AS ToUpdatedAtUtc
-                FROM [dbo].[GraphNode] AS n1, [dbo].[GraphEdge] AS e, [dbo].[GraphNode] AS n2
-                WHERE MATCH(n1-(e)->n2)
-                  AND n1.[Id] = @NodeId;";
+                  AND n1.[Id] = @NodeId"
+            + (hasRelFilter ? "\n                  AND e.[RelationshipType] = @RelFilter" : string.Empty)
+            + ";";
 
         try
         {
@@ -432,16 +427,23 @@ public class SqlGraphRepository : IGraphRepository
         if (maxDepth <= 0) maxDepth = 2;
         if (maxResults <= 0) maxResults = 50;
 
-        // Recursive CTE for variable-depth traversal via explicit FromNodeId/ToNodeId columns
+        // Recursive CTE for variable-depth traversal via explicit FromNodeId/ToNodeId columns.
+        // Anchor columns (ChunkId/SourceContentHash/SourceDocumentId) are added to BOTH the anchor
+        // and recursive members with matching ordinals across the UNION ALL. No CAST type-pinning is
+        // needed (unlike SecondRelationship's literal empty-string anchor): every column is a real
+        // GraphNode column on both sides, so the types align naturally.
         const string sql = @"
             WITH Paths AS (
                 -- Anchor: direct neighbours (depth 1)
                 SELECT
                     n1.[Id]   AS SourceId, n1.[Name] AS SourceName, n1.[Type] AS SourceType, n1.[Description] AS SourceDescription,
+                    n1.[ChunkId] AS SourceChunkId, n1.[SourceContentHash] AS SourceSourceContentHash, n1.[SourceDocumentId] AS SourceSourceDocumentId,
                     e.[RelationshipType] AS FirstRelationship,
                     n2.[Id]   AS IntermediateId, n2.[Name] AS IntermediateName, n2.[Type] AS IntermediateType, n2.[Description] AS IntermediateDescription,
+                    n2.[ChunkId] AS IntermediateChunkId, n2.[SourceContentHash] AS IntermediateSourceContentHash, n2.[SourceDocumentId] AS IntermediateSourceDocumentId,
                     CAST('' AS NVARCHAR(200)) AS SecondRelationship,
                     n2.[Id]   AS TargetId, n2.[Name] AS TargetName, n2.[Type] AS TargetType, n2.[Description] AS TargetDescription,
+                    n2.[ChunkId] AS TargetChunkId, n2.[SourceContentHash] AS TargetSourceContentHash, n2.[SourceDocumentId] AS TargetSourceDocumentId,
                     1 AS Depth
                 FROM [dbo].[GraphNode] AS n1
                 INNER JOIN [dbo].[GraphEdge] AS e ON e.[FromNodeId] = n1.[Id]
@@ -453,10 +455,13 @@ public class SqlGraphRepository : IGraphRepository
                 -- Recursive: extend by one hop
                 SELECT
                     p.SourceId, p.SourceName, p.SourceType, p.SourceDescription,
+                    p.SourceChunkId, p.SourceSourceContentHash, p.SourceSourceDocumentId,
                     p.FirstRelationship,
                     p.TargetId AS IntermediateId, p.TargetName AS IntermediateName, p.TargetType AS IntermediateType, p.TargetDescription AS IntermediateDescription,
+                    p.TargetChunkId AS IntermediateChunkId, p.TargetSourceContentHash AS IntermediateSourceContentHash, p.TargetSourceDocumentId AS IntermediateSourceDocumentId,
                     e2.[RelationshipType] AS SecondRelationship,
                     n3.[Id]   AS TargetId, n3.[Name] AS TargetName, n3.[Type] AS TargetType, n3.[Description] AS TargetDescription,
+                    n3.[ChunkId] AS TargetChunkId, n3.[SourceContentHash] AS TargetSourceContentHash, n3.[SourceDocumentId] AS TargetSourceDocumentId,
                     p.Depth + 1
                 FROM Paths p
                 INNER JOIN [dbo].[GraphEdge] AS e2 ON e2.[FromNodeId] = p.TargetId
@@ -478,11 +483,11 @@ public class SqlGraphRepository : IGraphRepository
                     cancellationToken: cancellationToken));
 
             var results = rows.Select(r => new GraphPathResultDto(
-                new GraphNodeDto { Id = (Guid)r.SourceId, Name = (string)r.SourceName, Type = (string)r.SourceType, Description = (string?)r.SourceDescription },
+                new GraphNodeDto { Id = (Guid)r.SourceId, Name = (string)r.SourceName, Type = (string)r.SourceType, Description = (string?)r.SourceDescription, ChunkId = (string?)r.SourceChunkId, SourceContentHash = (string?)r.SourceSourceContentHash, SourceDocumentId = (Guid?)r.SourceSourceDocumentId },
                 (string)r.FirstRelationship,
-                new GraphNodeDto { Id = (Guid)r.IntermediateId, Name = (string)r.IntermediateName, Type = (string)r.IntermediateType, Description = (string?)r.IntermediateDescription },
+                new GraphNodeDto { Id = (Guid)r.IntermediateId, Name = (string)r.IntermediateName, Type = (string)r.IntermediateType, Description = (string?)r.IntermediateDescription, ChunkId = (string?)r.IntermediateChunkId, SourceContentHash = (string?)r.IntermediateSourceContentHash, SourceDocumentId = (Guid?)r.IntermediateSourceDocumentId },
                 (string)r.SecondRelationship,
-                new GraphNodeDto { Id = (Guid)r.TargetId, Name = (string)r.TargetName, Type = (string)r.TargetType, Description = (string?)r.TargetDescription }
+                new GraphNodeDto { Id = (Guid)r.TargetId, Name = (string)r.TargetName, Type = (string)r.TargetType, Description = (string?)r.TargetDescription, ChunkId = (string?)r.TargetChunkId, SourceContentHash = (string?)r.TargetSourceContentHash, SourceDocumentId = (Guid?)r.TargetSourceDocumentId }
             )).ToList().AsReadOnly();
 
             _logger.LogInformation("FindPathsAsync: source={SourceNodeId} maxDepth={MaxDepth} found={Count}",
@@ -506,9 +511,9 @@ public class SqlGraphRepository : IGraphRepository
 
         const string sql = @"
             SELECT TOP(@MaxResults)
-                n1.[Id] AS FromId, n1.[Name] AS FromName, n1.[Type] AS FromType, n1.[Description] AS FromDescription, n1.[SourceDocumentId] AS FromSourceDocumentId, n1.[CreatedAtUtc] AS FromCreatedAtUtc, n1.[UpdatedAtUtc] AS FromUpdatedAtUtc,
+                n1.[Id] AS FromId, n1.[Name] AS FromName, n1.[Type] AS FromType, n1.[Description] AS FromDescription, n1.[SourceDocumentId] AS FromSourceDocumentId, n1.[ChunkId] AS FromChunkId, n1.[SourceContentHash] AS FromSourceContentHash, n1.[CreatedAtUtc] AS FromCreatedAtUtc, n1.[UpdatedAtUtc] AS FromUpdatedAtUtc,
                 e.[RelationshipType], e.[Weight], e.[Context],
-                n2.[Id] AS ToId, n2.[Name] AS ToName, n2.[Type] AS ToType, n2.[Description] AS ToDescription, n2.[SourceDocumentId] AS ToSourceDocumentId, n2.[CreatedAtUtc] AS ToCreatedAtUtc, n2.[UpdatedAtUtc] AS ToUpdatedAtUtc
+                n2.[Id] AS ToId, n2.[Name] AS ToName, n2.[Type] AS ToType, n2.[Description] AS ToDescription, n2.[SourceDocumentId] AS ToSourceDocumentId, n2.[ChunkId] AS ToChunkId, n2.[SourceContentHash] AS ToSourceContentHash, n2.[CreatedAtUtc] AS ToCreatedAtUtc, n2.[UpdatedAtUtc] AS ToUpdatedAtUtc
             FROM [dbo].[GraphNode] AS n1, [dbo].[GraphEdge] AS e, [dbo].[GraphNode] AS n2
             WHERE MATCH(n1-(e)->n2)
               AND e.[RelationshipType] = @RelType;";
@@ -544,6 +549,8 @@ public class SqlGraphRepository : IGraphRepository
             Type = (string)r.FromType,
             Description = (string?)r.FromDescription,
             SourceDocumentId = (Guid?)r.FromSourceDocumentId,
+            ChunkId = (string?)r.FromChunkId,
+            SourceContentHash = (string?)r.FromSourceContentHash,
             CreatedAtUtc = (DateTimeOffset)r.FromCreatedAtUtc,
             UpdatedAtUtc = (DateTimeOffset?)r.FromUpdatedAtUtc
         },
@@ -557,6 +564,8 @@ public class SqlGraphRepository : IGraphRepository
             Type = (string)r.ToType,
             Description = (string?)r.ToDescription,
             SourceDocumentId = (Guid?)r.ToSourceDocumentId,
+            ChunkId = (string?)r.ToChunkId,
+            SourceContentHash = (string?)r.ToSourceContentHash,
             CreatedAtUtc = (DateTimeOffset)r.ToCreatedAtUtc,
             UpdatedAtUtc = (DateTimeOffset?)r.ToUpdatedAtUtc
         });

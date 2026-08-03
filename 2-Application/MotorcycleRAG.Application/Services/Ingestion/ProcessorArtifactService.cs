@@ -24,6 +24,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
     private readonly IIndexedChunkRepository _chunkRepository;
     private readonly IIngestionSourceAccessTokenService _sourceAccessTokenService;
     private readonly IIngestionJobService _ingestionJobService;
+    private readonly IManualDocumentRepository _manualDocumentRepository;
     private readonly ILogger<ProcessorArtifactService> _logger;
 
     public ProcessorArtifactService(
@@ -35,6 +36,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         IIndexedChunkRepository chunkRepository,
         IIngestionSourceAccessTokenService sourceAccessTokenService,
         IIngestionJobService ingestionJobService,
+        IManualDocumentRepository manualDocumentRepository,
         ILogger<ProcessorArtifactService> logger)
     {
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
@@ -45,6 +47,7 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         _chunkRepository = chunkRepository ?? throw new ArgumentNullException(nameof(chunkRepository));
         _sourceAccessTokenService = sourceAccessTokenService ?? throw new ArgumentNullException(nameof(sourceAccessTokenService));
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
+        _manualDocumentRepository = manualDocumentRepository ?? throw new ArgumentNullException(nameof(manualDocumentRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -178,52 +181,73 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         try
         {
             var now = DateTimeOffset.UtcNow;
-            var result = await _chunkIndexingService.IndexFromJsonlAsync(buffer, uploadId, cancellationToken).ConfigureAwait(false);
-            var expected = result.TotalParsed;
-            var indexed = result.Outcomes.Count(static outcome => outcome.Succeeded);
-            var failed = result.Outcomes.Count(static outcome => !outcome.Succeeded);
-            var artifactState = ComputeArtifactState(indexed, expected);
+
+            // Plan D3: Resolve indexedArtifactId, ingestionJobId, and sourceContentHash BEFORE calling IndexFromJsonlAsync
+            var indexedArtifactId = Guid.NewGuid();
             var job = await FindLatestSearchChunkJobAsync(uploadId, cancellationToken).ConfigureAwait(false);
 
             if (job is null)
             {
                 _logger.LogWarning("No ingestion job found for uploadId {UploadId}. Skipping catalog write. Artifact is stored in blob.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
+                return;
             }
-            else
+
+            // Validate that the resolved IDs are not Guid.Empty (a logic error, never legitimate)
+            if (indexedArtifactId == Guid.Empty)
             {
-                var artifact = new IndexedArtifactDto
-                {
-                    IndexedArtifactId = Guid.NewGuid(),
-                    IngestionJobId = job.IngestionJobId,
-                    UploadId = uploadId,
-                    ArtifactType = "search-chunks",
-                    BlobContainer = container,
-                    BlobPath = blobPath,
-                    State = artifactState,
-                    ExpectedChunkCount = expected,
-                    IndexedChunkCount = indexed,
-                    FailedChunkCount = failed,
-                    LastProcessedAtUtc = now,
-                    FailureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null,
-                    CreatedAtUtc = now
-                };
-
-                await _artifactRepository.UpsertAsync(artifact, cancellationToken).ConfigureAwait(false);
-                await _chunkRepository.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, cancellationToken).ConfigureAwait(false);
-                var indexedChunks = ConvertToIndexedChunks(result.Outcomes, artifact.IndexedArtifactId, job.IngestionJobId, uploadId, now);
-                if (indexedChunks.Count > 0)
-                {
-                    await _chunkRepository.UpsertManyAsync(indexedChunks, cancellationToken).ConfigureAwait(false);
-                }
-
-                var failureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null;
-                var terminalStatus = MapArtifactStateToJobStatus(artifactState);
-                var transitioned = await TryTransitionSearchChunkJobToTerminalAsync(job.IngestionJobId, terminalStatus, expected, indexed, failureReason, cancellationToken).ConfigureAwait(false);
-                _logger.LogInformation(
-                    "Search chunk indexing terminal outcome: JobId={JobId}, Outcome={Outcome}, Transitioned={Transitioned}, Expected={ExpectedCount}, Indexed={IndexedCount}, Failed={FailedCount}, Batches={BatchCount}, DurationMs={DurationMs}, FailureReason={FailureReason}.",
-                    job.IngestionJobId, terminalStatus, transitioned, expected, indexed, failed, result.BatchCount, stopwatch.ElapsedMilliseconds,
-                    failureReason is null ? string.Empty : failureReason);
+                _logger.LogError("Pre-allocated indexedArtifactId is Guid.Empty. This is a bug. Skipping chunk indexing for upload {UploadId}.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
+                return;
             }
+
+            if (job.IngestionJobId == Guid.Empty)
+            {
+                _logger.LogError("Resolved ingestionJobId is Guid.Empty. This is a bug. Skipping chunk indexing for upload {UploadId}.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
+                return;
+            }
+
+            // Resolve sourceContentHash: null when no ManualDocument, never string.Empty
+            var sourceContentHash = await SourceContentHashResolver.ResolveAsync(_manualDocumentRepository, job, cancellationToken).ConfigureAwait(false);
+
+            // Call the 5-parameter overload with resolved anchors
+            var result = await _chunkIndexingService.IndexFromJsonlAsync(buffer, uploadId, indexedArtifactId, job.IngestionJobId, sourceContentHash, cancellationToken).ConfigureAwait(false);
+            var expected = result.TotalParsed;
+            var indexed = result.Outcomes.Count(static outcome => outcome.Succeeded);
+            var failed = result.Outcomes.Count(static outcome => !outcome.Succeeded);
+            var artifactState = ComputeArtifactState(indexed, expected);
+
+            // Reuse the pre-allocated indexedArtifactId in artifact persistence
+            var artifact = new IndexedArtifactDto
+            {
+                IndexedArtifactId = indexedArtifactId,
+                IngestionJobId = job.IngestionJobId,
+                UploadId = uploadId,
+                ArtifactType = "search-chunks",
+                BlobContainer = container,
+                BlobPath = blobPath,
+                State = artifactState,
+                ExpectedChunkCount = expected,
+                IndexedChunkCount = indexed,
+                FailedChunkCount = failed,
+                LastProcessedAtUtc = now,
+                FailureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null,
+                CreatedAtUtc = now
+            };
+
+            await _artifactRepository.UpsertAsync(artifact, cancellationToken).ConfigureAwait(false);
+            await _chunkRepository.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, cancellationToken).ConfigureAwait(false);
+            var indexedChunks = ConvertToIndexedChunks(result.Outcomes, artifact.IndexedArtifactId, job.IngestionJobId, uploadId, now);
+            if (indexedChunks.Count > 0)
+            {
+                await _chunkRepository.UpsertManyAsync(indexedChunks, cancellationToken).ConfigureAwait(false);
+            }
+
+            var failureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null;
+            var terminalStatus = MapArtifactStateToJobStatus(artifactState);
+            var transitioned = await TryTransitionSearchChunkJobToTerminalAsync(job.IngestionJobId, terminalStatus, expected, indexed, failureReason, cancellationToken).ConfigureAwait(false);
+            _logger.LogInformation(
+                "Search chunk indexing terminal outcome: JobId={JobId}, Outcome={Outcome}, Transitioned={Transitioned}, Expected={ExpectedCount}, Indexed={IndexedCount}, Failed={FailedCount}, Batches={BatchCount}, DurationMs={DurationMs}, FailureReason={FailureReason}.",
+                job.IngestionJobId, terminalStatus, transitioned, expected, indexed, failed, result.BatchCount, stopwatch.ElapsedMilliseconds,
+                failureReason is null ? string.Empty : failureReason);
 
             try
             {

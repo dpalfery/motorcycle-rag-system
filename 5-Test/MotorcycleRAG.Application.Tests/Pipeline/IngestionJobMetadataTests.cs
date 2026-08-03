@@ -32,6 +32,8 @@ public sealed class IngestionJobMetadataTests
     private readonly Mock<IAzureSearchDocumentService> _searchDocumentService;
     private readonly Mock<IGraphRepository> _graphRepository;
     private readonly Mock<IGraphEntityIngestionService> _graphEntityIngestionService;
+    private readonly Mock<IBikeModelRepository> _bikeModelRepository;
+    private readonly ManualBikeLinker _manualBikeLinker;
     private readonly GraphIngestionChannel _graphIngestionChannel;
     private readonly Mock<ILogger<IngestionJobService>> _logger;
 
@@ -44,8 +46,13 @@ public sealed class IngestionJobMetadataTests
         _searchDocumentService = new Mock<IAzureSearchDocumentService>();
         _graphRepository = new Mock<IGraphRepository>();
         _graphEntityIngestionService = new Mock<IGraphEntityIngestionService>();
+        _bikeModelRepository = new Mock<IBikeModelRepository>();
         _graphIngestionChannel = new GraphIngestionChannel();
         _logger = new Mock<ILogger<IngestionJobService>>();
+
+        // Create ManualBikeLinker with real instance (it's sealed, can't be mocked)
+        var linkerLogger = new Mock<ILogger<ManualBikeLinker>>();
+        _manualBikeLinker = new ManualBikeLinker(_bikeModelRepository.Object, _graphRepository.Object, linkerLogger.Object);
 
         // Default: UpdateMetadataAsync and UpdateAsync succeed.
         _repository
@@ -500,6 +507,7 @@ public sealed class IngestionJobMetadataTests
             _graphRepository.Object,
             _graphEntityIngestionService.Object,
             _graphIngestionChannel,
+            _manualBikeLinker,
             Options.Create(new BlobStorageOptions { RawUploadsContainer = "raw-uploads" }),
             Options.Create(new IngestionOptions { MaxInputBytes = 2_000_000_000L }),
             _logger.Object);

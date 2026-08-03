@@ -117,7 +117,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
             Microsoft.Extensions.Options.Options.Create(CreateOptions()),
             TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
 
-        var act = async () => await sut.IndexFromJsonlAsync(null!, "upload-1");
+        var act = async () => await sut.IndexFromJsonlAsync(null!, "upload-1", Guid.Empty, Guid.Empty, null);
 
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("jsonlStream");
     }
@@ -136,7 +136,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
 
         using var stream = CreateJsonlStream(("chunk-1", 1, 0));
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, uploadId!);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, uploadId!, Guid.Empty, Guid.Empty, null);
 
         await act.Should().ThrowAsync<ArgumentException>().WithParameterName("uploadId");
     }
@@ -151,7 +151,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
             TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
         using var stream = CreateJsonlStream(("chunk-1", 1, 0));
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-1");
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-1", Guid.Empty, Guid.Empty, null);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*InMemoryShimEndpoint must be configured*");
@@ -167,7 +167,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
             TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
         using var stream = CreateJsonlStream(("chunk-1", 1, 0));
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-1");
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-1", Guid.Empty, Guid.Empty, null);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*must be an http or https loopback URL*");
@@ -203,7 +203,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
         using var stream = CreateJsonlStream(("chunk-1", 1, 0), ("chunk-2", 2, 1));
 
         // Act
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-1");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-1", Guid.Empty, Guid.Empty, null);
 
         // Assert
         result.TotalParsed.Should().Be(2);
@@ -249,7 +249,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
         using var stream = CreateJsonlStream(("chunk-1", 1, 0));
 
         // Act
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-1");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-1", Guid.Empty, Guid.Empty, null);
 
         // Assert
         result.TotalParsed.Should().Be(1);
@@ -289,7 +289,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
         using var stream = CreateJsonlStream(("chunk-1", 1, 0));
 
         // Act
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-loopback");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-loopback", Guid.Empty, Guid.Empty, null);
 
         // Assert
         result.TotalParsed.Should().Be(1);
@@ -324,7 +324,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
         // Act
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-missing-id");
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-missing-id", Guid.Empty, Guid.Empty, null);
 
         // Assert
         await act.Should().ThrowAsync<JsonException>()
@@ -359,7 +359,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
             TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
         using var stream = CreateJsonlStream(("chunk-1", 1, 0));
 
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-trailing");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-trailing", Guid.Empty, Guid.Empty, null);
 
         result.TotalParsed.Should().Be(1);
         result.Outcomes.Should().AllSatisfy(o => o.Succeeded.Should().BeTrue());
@@ -390,7 +390,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
             TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(""));
 
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-empty");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-empty", Guid.Empty, Guid.Empty, null);
 
         result.TotalParsed.Should().Be(0);
         result.BatchCount.Should().Be(0);
@@ -427,7 +427,7 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-cancel", cts.Token);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-cancel", Guid.Empty, Guid.Empty, null, cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
@@ -457,9 +457,140 @@ public sealed class InMemorySearchShimChunkIndexingServiceTests
             TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
         using var stream = CreateJsonlStream(("chunk-1", 1, 0));
 
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-ipv6");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-ipv6", Guid.Empty, Guid.Empty, null);
 
         result.TotalParsed.Should().Be(1);
         result.Outcomes.Should().AllSatisfy(o => o.Succeeded.Should().BeTrue());
+    }
+
+    // ---- IndexFromJsonlAsync - 5-parameter overload with anchor metadata ----
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WithAnchorMetadata_ShouldStampChunksWithIndexedArtifactId()
+    {
+        // Arrange
+        var indexedArtifactId = Guid.NewGuid();
+        var ingestionJobId = Guid.NewGuid();
+        var sourceContentHash = "hash-abc-123";
+
+        var capturedRequestContent = string.Empty;
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Loose);
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req =>
+                    req.Method == HttpMethod.Post &&
+                    req.RequestUri!.PathAndQuery.Contains("index-jsonl")),
+                ItExpr.IsAny<CancellationToken>())
+            .Returns(async (HttpRequestMessage req, CancellationToken ct) =>
+            {
+                capturedRequestContent = await req.Content!.ReadAsStringAsync(ct);
+                return new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent("{}")
+                };
+            });
+
+        using var httpClient = new HttpClient(handlerMock.Object);
+        var sut = new InMemorySearchShimChunkIndexingService(
+            httpClient,
+            Options.Create(CreateOptions("http://localhost:9090")),
+            TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
+        using var stream = CreateJsonlStream(("chunk-1", 1, 0), ("chunk-2", 2, 1));
+
+        // Act
+        var result = await sut.IndexFromJsonlAsync(
+            stream,
+            "upload-with-anchors",
+            indexedArtifactId,
+            ingestionJobId,
+            sourceContentHash);
+
+        // Assert
+        result.TotalParsed.Should().Be(2);
+        result.Outcomes.Should().AllSatisfy(o => o.Succeeded.Should().BeTrue());
+
+        // Verify the captured JSONL contains stamped anchor metadata
+        var lines = capturedRequestContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        lines.Should().HaveCount(2);
+
+        foreach (var line in lines)
+        {
+            using var doc = JsonDocument.Parse(line);
+            var root = doc.RootElement;
+
+            root.TryGetProperty("indexedArtifactId", out var artifactIdElem).Should().BeTrue();
+            artifactIdElem.GetString().Should().Be(indexedArtifactId.ToString());
+
+            root.TryGetProperty("ingestionJobId", out var jobIdElem).Should().BeTrue();
+            jobIdElem.GetString().Should().Be(ingestionJobId.ToString());
+
+            root.TryGetProperty("sourceContentHash", out var hashElem).Should().BeTrue();
+            hashElem.GetString().Should().Be(sourceContentHash);
+        }
+    }
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WithUnsetAnchorMetadata_ShouldOmitAnchorFieldsFromJsonl()
+    {
+        // Arrange: call with Guid.Empty and empty string for anchors — they should be omitted
+        // from the JSON entirely, not written as null (prevents wiping existing anchors on merge)
+        var capturedRequestContent = string.Empty;
+        var handlerMock = new Mock<HttpMessageHandler>(MockBehavior.Loose);
+        handlerMock
+            .Protected()
+            .Setup<Task<HttpResponseMessage>>(
+                "SendAsync",
+                ItExpr.Is<HttpRequestMessage>(req =>
+                    req.Method == HttpMethod.Post &&
+                    req.RequestUri!.PathAndQuery.Contains("index-jsonl")),
+                ItExpr.IsAny<CancellationToken>())
+            .Returns(async (HttpRequestMessage req, CancellationToken ct) =>
+            {
+                capturedRequestContent = await req.Content!.ReadAsStringAsync(ct);
+                return new HttpResponseMessage
+                {
+                    StatusCode = HttpStatusCode.OK,
+                    Content = new StringContent("{}")
+                };
+            });
+
+        using var httpClient = new HttpClient(handlerMock.Object);
+        var sut = new InMemorySearchShimChunkIndexingService(
+            httpClient,
+            Options.Create(CreateOptions("http://localhost:9090")),
+            TestHelpers.CreateNullLogger<InMemorySearchShimChunkIndexingService>());
+        using var stream = CreateJsonlStream(("chunk-1", 1, 0));
+
+        // Act: call with Guid.Empty and empty string
+        var result = await sut.IndexFromJsonlAsync(
+            stream,
+            "upload-unset-anchors",
+            Guid.Empty,
+            Guid.Empty,
+            string.Empty);
+
+        // Assert
+        result.TotalParsed.Should().Be(1);
+
+        var lines = capturedRequestContent.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        lines.Should().HaveCount(1);
+
+        using var doc = JsonDocument.Parse(lines[0]);
+        var root = doc.RootElement;
+
+        // The anchor fields must NOT be present when unset
+        root.TryGetProperty("indexedArtifactId", out _).Should().BeFalse(
+            "unset anchors must be omitted from JSON entirely (prevents merge-related anchor wipe)");
+        root.TryGetProperty("ingestionJobId", out _).Should().BeFalse(
+            "unset anchors must be omitted from JSON entirely (prevents merge-related anchor wipe)");
+        root.TryGetProperty("sourceContentHash", out _).Should().BeFalse(
+            "unset anchors must be omitted from JSON entirely (prevents merge-related anchor wipe)");
+
+        // Verify other required fields are still present
+        root.TryGetProperty("id", out var idElem).Should().BeTrue();
+        idElem.GetString().Should().Be("chunk-1");
     }
 }

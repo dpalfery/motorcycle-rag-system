@@ -6,6 +6,7 @@ using Moq;
 using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
@@ -29,6 +30,9 @@ public sealed class IngestionJobServiceCoverageTests {
     private readonly Mock<IAzureSearchDocumentService> _searchDocumentService;
     private readonly Mock<IGraphRepository> _graphRepository;
     private readonly Mock<IGraphEntityIngestionService> _graphEntityIngestionService;
+    private readonly Mock<IBikeModelRepository> _bikeModelRepository;
+    private readonly Mock<IManualDocumentRepository> _manualDocumentRepository;
+    private readonly ManualBikeLinker _manualBikeLinker;
     private readonly GraphIngestionChannel _graphIngestionChannel;
     private readonly Mock<ILogger<IngestionJobService>> _logger;
 
@@ -40,8 +44,14 @@ public sealed class IngestionJobServiceCoverageTests {
         _searchDocumentService = new Mock<IAzureSearchDocumentService>();
         _graphRepository = new Mock<IGraphRepository>();
         _graphEntityIngestionService = new Mock<IGraphEntityIngestionService>();
+        _bikeModelRepository = new Mock<IBikeModelRepository>();
+        _manualDocumentRepository = new Mock<IManualDocumentRepository>();
         _graphIngestionChannel = new GraphIngestionChannel();
         _logger = new Mock<ILogger<IngestionJobService>>();
+
+        // Create ManualBikeLinker with real instance (it's sealed, can't be mocked)
+        var linkerLogger = new Mock<ILogger<ManualBikeLinker>>();
+        _manualBikeLinker = new ManualBikeLinker(_bikeModelRepository.Object, _graphRepository.Object, linkerLogger.Object);
 
         _repository.Setup(r => r.CreateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>())).ReturnsAsync((IngestionJob job, CancellationToken _) => job);
         _repository.Setup(r => r.UpdateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
@@ -79,6 +89,7 @@ public sealed class IngestionJobServiceCoverageTests {
         _graphRepository.Object,
         _graphEntityIngestionService.Object,
         _graphIngestionChannel,
+        _manualBikeLinker,
         Options.Create(new BlobStorageOptions { RawUploadsContainer = "raw-uploads" }),
         Options.Create(new IngestionOptions { MaxInputBytes = 2_000_000_000L }),
         logger ?? _logger.Object);
@@ -373,6 +384,202 @@ public sealed class IngestionJobServiceCoverageTests {
         var sut = CreateSut();
         var act = () => sut.ProcessGraphIngestionJobAsync(null!);
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("job");
+    }
+
+    // --- T11 (plan 6-Docs/plans/2026-08-01-vector-graph-anchor-id-contract.md, §4/§5/§7):
+    // ManualBikeLinker.LinkAsync must be invoked by an actual RunGraphIngestionAsync pipeline
+    // run, not asserted via a direct call to the linker (that would prove nothing about wiring).
+    //
+    // Mockability formulation chosen: IngestionJobService's current constructor (11 params) does
+    // not accept anything ManualBikeLinker-compatible today — wiring it in is T11's own
+    // implementation work, which this task must not perform, and ManualBikeLinker is a concrete
+    // sealed class with no interface, so it cannot be mocked directly without introducing
+    // IManualBikeLinker (also out of scope for this task).
+    //
+    // Preferred formulation from the task brief: assert against the collaborator the linker
+    // itself depends on — IGraphRepository.UpsertEdgeAsync — using a REAL ManualBikeLinker
+    // instance (built from a mocked IBikeModelRepository and this fixture's shared
+    // _graphRepository mock) so no mock of the linker is ever required. The only remaining gap is
+    // constructing the SUT with that real linker wired in: since referencing a constructor
+    // parameter that does not exist yet would fail to compile — and because this project is
+    // compiled as a single unit, that would break every other test in it, including other agents'
+    // concurrent work — TryCreateSutWithLinker below discovers the (not-yet-existing) constructor
+    // via reflection at test-run time instead of at compile time. Today it finds no matching
+    // constructor and the test fails cleanly on that assertion (RED, for the right reason: the
+    // pipeline is not wired to the linker at all). Once T11 adds a constructor parameter whose
+    // type is ManualBikeLinker itself, or an interface ManualBikeLinker implements (e.g. a future
+    // IManualBikeLinker), this resolves it automatically and the rest of the test exercises the
+    // real pipeline call path.
+    //
+    // What the implementer must provide for this to go GREEN:
+    //   1. Add a constructor parameter to IngestionJobService whose type is ManualBikeLinker (or
+    //      an interface it implements) and store it as a field.
+    //   2. In RunGraphIngestionAsync, after _graphEntityIngestionService.IngestAsync(...)
+    //      succeeds, when job.ManualDocumentId.HasValue and TryParseMetadata(job.MetadataJson)
+    //      yields non-null Make/Model/Year, call linker.LinkAsync(job.ManualDocumentId.Value,
+    //      make, model, year.Value, ct) — never throwing on missing/unparseable metadata (D5).
+
+    /// <summary>
+    /// Locates (via reflection, not a compile-time reference) an <see cref="IngestionJobService"/>
+    /// constructor that accepts a parameter assignable from <see cref="ManualBikeLinker"/> — either
+    /// the concrete class or an interface it implements — and invokes it with this fixture's
+    /// existing mocked collaborators plus <paramref name="linker"/>. Returns a null Sut and a
+    /// diagnostic reason when no such constructor exists yet, which is the current (pre-T11) state
+    /// of the production code.
+    /// </summary>
+    private (IngestionJobService? Sut, string? FailureReason) TryCreateSutWithLinker(ManualBikeLinker linker) {
+        var availableServices = new Dictionary<Type, object> {
+            [typeof(IIngestionJobRepository)] = _repository.Object,
+            [typeof(IBlobStorageService)] = _blobStorage.Object,
+            [typeof(IIndexedArtifactRepository)] = _artifactRepository.Object,
+            [typeof(IIndexedChunkRepository)] = _chunkRepository.Object,
+            [typeof(IAzureSearchDocumentService)] = _searchDocumentService.Object,
+            [typeof(IGraphRepository)] = _graphRepository.Object,
+            [typeof(IGraphEntityIngestionService)] = _graphEntityIngestionService.Object,
+            [typeof(GraphIngestionChannel)] = _graphIngestionChannel,
+            [typeof(IOptions<BlobStorageOptions>)] = Options.Create(new BlobStorageOptions { RawUploadsContainer = "raw-uploads" }),
+            [typeof(IOptions<IngestionOptions>)] = Options.Create(new IngestionOptions { MaxInputBytes = 2_000_000_000L }),
+            [typeof(ILogger<IngestionJobService>)] = _logger.Object
+        };
+
+        var candidateCtor = typeof(IngestionJobService)
+            .GetConstructors()
+            .Where(ctor => ctor.GetParameters().Any(p => p.ParameterType.IsAssignableFrom(typeof(ManualBikeLinker))))
+            .OrderByDescending(ctor => ctor.GetParameters().Length)
+            .FirstOrDefault();
+
+        if (candidateCtor is null) {
+            return (null,
+                "IngestionJobService currently has no constructor accepting a ManualBikeLinker-compatible " +
+                "parameter — T11 (wiring ManualBikeLinker into the pipeline) has not been implemented yet.");
+        }
+
+        var parameters = candidateCtor.GetParameters();
+        var args = new object[parameters.Length];
+        for (var i = 0; i < parameters.Length; i++) {
+            var paramType = parameters[i].ParameterType;
+            if (paramType.IsAssignableFrom(typeof(ManualBikeLinker))) {
+                args[i] = linker;
+                continue;
+            }
+
+            var matchingType = availableServices.Keys.FirstOrDefault(t => paramType.IsAssignableFrom(t));
+            if (matchingType is null) {
+                return (null, $"No test double registered for constructor parameter type '{paramType.FullName}'.");
+            }
+
+            args[i] = availableServices[matchingType];
+        }
+
+        var instance = (IngestionJobService)candidateCtor.Invoke(args);
+        return (instance, null);
+    }
+
+    [Fact]
+    public async Task ProcessGraphIngestionJobAsync_ManualDocumentIdPresentWithParsedMetadata_LinksManualToBikeModelViaGraphRepository() {
+        var manualDocumentId = Guid.NewGuid();
+        var bikeModelId = Guid.NewGuid();
+        var job = IngestionJob.Rehydrate(
+            id: 1,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Processing,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.BikeGraph,
+            inputRef: "upload-graph-linker-001",
+            sourceFileName: null,
+            computeProvider: "AdminLocalProcessor",
+            docIngestionRunId: null,
+            manualDocumentId: manualDocumentId,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            // Lower-case keys: matches IngestionJobService's private TryParseMetadata/ExtractMetadata
+            // helper, which reads "make"/"model"/"year"/"category" via case-sensitive
+            // JsonElement.TryGetProperty. "category" is included even though D5 only names
+            // Make/Model/Year, so this test passes whether the implementer gates on those three
+            // fields individually or on ParsedMetadata.IsComplete (all four).
+            metadataJson: "{\"make\":\"Honda\",\"model\":\"CBR600RR\",\"year\":2024,\"category\":\"sport\"}");
+
+        var bikeModel = BikeModel.Rehydrate(
+            id: bikeModelId,
+            make: "Honda",
+            model: "CBR600RR",
+            year: 2024,
+            aliases: null,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            updatedAtUtc: DateTimeOffset.UtcNow,
+            createdByUserId: null,
+            uploadRef: null);
+        var bikeModelRepository = new Mock<IBikeModelRepository>();
+        bikeModelRepository
+            .Setup(r => r.FindCanonicalAsync("Honda", "CBR600RR", 2024, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(bikeModel);
+        var linker = new ManualBikeLinker(bikeModelRepository.Object, _graphRepository.Object, Mock.Of<ILogger<ManualBikeLinker>>());
+
+        var (sut, failureReason) = TryCreateSutWithLinker(linker);
+        sut.Should().NotBeNull(
+            "IngestionJobService must gain a ManualBikeLinker-compatible constructor dependency once " +
+            $"T11 wires it into RunGraphIngestionAsync (reflection diagnostic: {failureReason}).");
+
+        await sut!.ProcessGraphIngestionJobAsync(job);
+
+        // Asserted through the linker's own collaborator (IGraphRepository.UpsertEdgeAsync) rather
+        // than a mock of LinkAsync itself — see the formulation note above this test group.
+        _graphRepository.Verify(
+            r => r.UpsertEdgeAsync(
+                It.Is<GraphEdgeDto>(edge =>
+                    edge.FromNodeId == manualDocumentId
+                    && edge.ToNodeId == bikeModelId
+                    && edge.RelationshipType == "manual-for-bike"),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ProcessGraphIngestionJobAsync_ManualDocumentIdNull_DoesNotLinkManualToBikeModelAndDoesNotThrow() {
+        var job = IngestionJob.Create(
+            IngestionJobType.BikeGraph,
+            "upload-graph-linker-002",
+            createdBySubject: null,
+            initialStatus: IngestionJobStatus.Processing);
+        // IngestionJob.Create never sets ManualDocumentId — it is null by construction, exercising
+        // the guard path (D5: job.ManualDocumentId.HasValue).
+        job.ManualDocumentId.Should().BeNull();
+        job.SetMetadata("{\"make\":\"Honda\",\"model\":\"CBR600RR\",\"year\":2024,\"category\":\"sport\"}");
+
+        var bikeModelRepository = new Mock<IBikeModelRepository>();
+        var linker = new ManualBikeLinker(bikeModelRepository.Object, _graphRepository.Object, Mock.Of<ILogger<ManualBikeLinker>>());
+
+        var (sut, failureReason) = TryCreateSutWithLinker(linker);
+        sut.Should().NotBeNull(
+            "IngestionJobService must gain a ManualBikeLinker-compatible constructor dependency once " +
+            $"T11 wires it into RunGraphIngestionAsync (reflection diagnostic: {failureReason}).");
+
+        var act = () => sut!.ProcessGraphIngestionJobAsync(job);
+
+        await act.Should().NotThrowAsync();
+        bikeModelRepository.Verify(
+            r => r.FindCanonicalAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+        _graphRepository.Verify(
+            r => r.UpsertEdgeAsync(
+                It.Is<GraphEdgeDto>(edge => edge.RelationshipType == "manual-for-bike"),
+                It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]

@@ -72,6 +72,32 @@ public sealed class SqlGraphRepositoryTests
     }
 
     [Fact]
+    public async Task UpsertNodeAsync_ShouldBindChunkAnchorColumns_WhenNodeHasChunkIdAndSourceContentHash()
+    {
+        // Regression/contract test for the vector<->graph anchor-ID bridge (plan
+        // 6-Docs/plans/2026-08-01-vector-graph-anchor-id-contract.md, §4 row T5).
+        // GraphNodeDto.ChunkId/SourceContentHash (added by T4) must round-trip through the
+        // generated MERGE statement's SQL text and bound parameters.
+        var node = CreateNode(chunkId: "chunk-abc-0", sourceContentHash: "hash123");
+        var connection = new FakeDbConnection();
+        connection.EnqueueNonQuery(
+            1,
+            command =>
+            {
+                command.CommandText.Should().Contain("MERGE [dbo].[GraphNode] AS target");
+                command.CommandText.Should().Contain("[ChunkId]");
+                command.CommandText.Should().Contain("[SourceContentHash]");
+                command.Parameters["ChunkId"].Should().Be(node.ChunkId);
+                command.Parameters["SourceContentHash"].Should().Be(node.SourceContentHash);
+            });
+        var sut = CreateSut(connection);
+
+        await sut.UpsertNodeAsync(node);
+
+        connection.ExecutedCommands.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task UpsertNodeAsync_ShouldWrapDatabaseFailures()
     {
         var node = CreateNode();
@@ -466,6 +492,39 @@ public sealed class SqlGraphRepositoryTests
     }
 
     [Fact]
+    public async Task SearchNodesAsync_ShouldSelectAndMapChunkAnchorColumns_WhenRowIncludesChunkIdAndSourceContentHash()
+    {
+        // Regression/contract test for the vector<->graph anchor-ID bridge (plan
+        // 6-Docs/plans/2026-08-01-vector-graph-anchor-id-contract.md, §4 row T5, read path).
+        // The fake reader row's ChunkId/SourceContentHash columns are entirely test-controlled
+        // (FakeDbConnection never executes real SQL), so a bare DTO-equality assertion here would
+        // pass today purely from Dapper's own reflection-based column->property mapping now that
+        // GraphNodeDto carries these properties (T4) — it would prove nothing about this
+        // repository. The CommandText assertion below is what actually exercises
+        // SqlGraphRepository: SearchNodesAsync's SELECT column list must itself request
+        // [ChunkId]/[SourceContentHash], which it does not today.
+        var connection = new FakeDbConnection();
+        connection.EnqueueReader(
+            CreateReader(CreateNodeRow(
+                name: "Chunk-Anchored Node",
+                type: "Component",
+                chunkId: "chunk-xyz-2",
+                sourceContentHash: "hash789")),
+            command =>
+            {
+                command.CommandText.Should().Contain("[ChunkId]");
+                command.CommandText.Should().Contain("[SourceContentHash]");
+            });
+        var sut = CreateSut(connection);
+
+        var results = await sut.SearchNodesAsync("chunk-anchored", null, 5);
+
+        results.Should().ContainSingle();
+        results[0].ChunkId.Should().Be("chunk-xyz-2");
+        results[0].SourceContentHash.Should().Be("hash789");
+    }
+
+    [Fact]
     public async Task SearchNodesAsync_ShouldWrapDatabaseFailures()
     {
         var connection = new FakeDbConnection();
@@ -508,7 +567,11 @@ public sealed class SqlGraphRepositoryTests
                 toUpdatedAtUtc: null)),
             command =>
             {
-                command.CommandText.Should().Contain("AND e.[RelationshipType] = @RelFilter;");
+                // Semantic assertion (plan T4): the relationship-type predicate must be
+                // present in the generated SQL and parameter-bound. Asserting the literal
+                // "AND e.[RelationshipType] = @RelFilter;" would couple the test to the
+                // exact whitespace/terminator — the @RelFilter token is the contract.
+                command.CommandText.Should().Contain("@RelFilter");
                 command.Parameters["NodeId"].Should().Be(nodeId);
                 command.Parameters["RelFilter"].Should().Be("USES");
             });
@@ -530,14 +593,32 @@ public sealed class SqlGraphRepositoryTests
     [Fact]
     public async Task GetNeighboursAsync_ShouldOmitRelationshipFilter_WhenNotProvided()
     {
+        // Semantic rewrite (plan T4): the previous assertions coupled to exact SQL text
+        // (`.Contain("AND n1.[Id] = @NodeId;")` / `.NotContain("AND e.[RelationshipType] = @RelFilter;")`).
+        // The @RelFilter token is the contract: present iff a filter is supplied. This also
+        // adds the anchor round-trip for the UNFILTERED path, complementing the T17 test
+        // which only covers the filtered path — both code paths must project + map the
+        // ChunkId / SourceContentHash columns.
         var nodeId = Guid.NewGuid();
+        var fromChunkId = "chunk-from-unfiltered";
+        var fromSourceContentHash = "hash-from-unfiltered";
+        var toChunkId = "chunk-to-unfiltered";
+        var toSourceContentHash = "hash-to-unfiltered";
         var connection = new FakeDbConnection();
         connection.EnqueueReader(
-            CreateReader(CreateTraversalRow(fromId: nodeId, relationshipType: "PART_OF")),
+            CreateReader(CreateTraversalRow(
+                fromId: nodeId,
+                fromChunkId: fromChunkId,
+                fromSourceContentHash: fromSourceContentHash,
+                toChunkId: toChunkId,
+                toSourceContentHash: toSourceContentHash,
+                relationshipType: "PART_OF")),
             command =>
             {
-                command.CommandText.Should().Contain("AND n1.[Id] = @NodeId;");
-                command.CommandText.Should().NotContain("AND e.[RelationshipType] = @RelFilter;");
+                // Semantic: @NodeId predicate is bound; relationship-type predicate is absent.
+                command.CommandText.Should().Contain("@NodeId");
+                command.CommandText.Should().NotContain("@RelFilter");
+                command.Parameters["NodeId"].Should().Be(nodeId);
                 command.Parameters.ContainsKey("RelFilter").Should().BeFalse();
             });
         var sut = CreateSut(connection);
@@ -546,6 +627,11 @@ public sealed class SqlGraphRepositoryTests
 
         results.Should().ContainSingle();
         results[0].RelationshipType.Should().Be("PART_OF");
+        // Anchor round-trip for the unfiltered path.
+        results[0].FromNode.ChunkId.Should().Be(fromChunkId);
+        results[0].FromNode.SourceContentHash.Should().Be(fromSourceContentHash);
+        results[0].ToNode.ChunkId.Should().Be(toChunkId);
+        results[0].ToNode.SourceContentHash.Should().Be(toSourceContentHash);
     }
 
     [Fact]
@@ -623,6 +709,169 @@ public sealed class SqlGraphRepositoryTests
         exception.Which.InnerException.Should().Be(expected);
     }
 
+    [Fact]
+    public async Task GetNeighboursAsync_ShouldSelectAndMapChunkAnchorColumns_WhenBothNodePositionsHaveChunkIdAndSourceContentHash()
+    {
+        // T17 (§4 row 83): SELECT-list + mapping assertions for SqlGraphRepository.GetNeighboursAsync.
+        // The generated SQL must project ChunkId and SourceContentHash for both FROM (n1) and TO (n2)
+        // node positions, and MapTraversalRow must round-trip those values into the returned
+        // GraphTraversalResultDto.FromNode / .ToNode respectively.
+        var nodeId = Guid.NewGuid();
+        var fromChunkId = "chunk-from-neighbour-1";
+        var fromSourceContentHash = "hash-from-neighbour-abc";
+        var toChunkId = "chunk-to-neighbour-2";
+        var toSourceContentHash = "hash-to-neighbour-xyz";
+        var connection = new FakeDbConnection();
+        connection.EnqueueReader(
+            CreateReader(CreateTraversalRow(
+                fromId: nodeId,
+                fromChunkId: fromChunkId,
+                fromSourceContentHash: fromSourceContentHash,
+                toChunkId: toChunkId,
+                toSourceContentHash: toSourceContentHash)),
+            command =>
+            {
+                // SELECT-list assertion: both node positions must project the anchor columns.
+                command.CommandText.Should().Contain("FromChunkId");
+                command.CommandText.Should().Contain("FromSourceContentHash");
+                command.CommandText.Should().Contain("ToChunkId");
+                command.CommandText.Should().Contain("ToSourceContentHash");
+            });
+        var sut = CreateSut(connection);
+
+        var results = await sut.GetNeighboursAsync(nodeId, "USES");
+
+        // Mapping assertion: the returned DTOs must expose the anchor values from the fake row.
+        results.Should().ContainSingle();
+        results[0].FromNode.ChunkId.Should().Be(fromChunkId);
+        results[0].FromNode.SourceContentHash.Should().Be(fromSourceContentHash);
+        results[0].ToNode.ChunkId.Should().Be(toChunkId);
+        results[0].ToNode.SourceContentHash.Should().Be(toSourceContentHash);
+    }
+
+    [Fact]
+    public async Task GetEdgesByTypeAsync_ShouldSelectAndMapChunkAnchorColumns_WhenBothNodePositionsHaveChunkIdAndSourceContentHash()
+    {
+        // T17 (§4 row 83): SELECT-list + mapping assertions for SqlGraphRepository.GetEdgesByTypeAsync.
+        // The generated SQL must project ChunkId and SourceContentHash for both n1 (FROM) and n2 (TO)
+        // node positions, and MapTraversalRow must round-trip those values.
+        var fromChunkId = "chunk-from-edges-1";
+        var fromSourceContentHash = "hash-from-edges-abc";
+        var toChunkId = "chunk-to-edges-2";
+        var toSourceContentHash = "hash-to-edges-xyz";
+        var connection = new FakeDbConnection();
+        connection.EnqueueReader(
+            CreateReader(CreateTraversalRow(
+                relationshipType: "REQUIRES",
+                fromChunkId: fromChunkId,
+                fromSourceContentHash: fromSourceContentHash,
+                toChunkId: toChunkId,
+                toSourceContentHash: toSourceContentHash)),
+            command =>
+            {
+                // SELECT-list assertion: both node positions must project the anchor columns.
+                command.CommandText.Should().Contain("FromChunkId");
+                command.CommandText.Should().Contain("FromSourceContentHash");
+                command.CommandText.Should().Contain("ToChunkId");
+                command.CommandText.Should().Contain("ToSourceContentHash");
+            });
+        var sut = CreateSut(connection);
+
+        var results = await sut.GetEdgesByTypeAsync("REQUIRES", 10);
+
+        // Mapping assertion: the returned DTOs must expose the anchor values.
+        results.Should().ContainSingle();
+        results[0].FromNode.ChunkId.Should().Be(fromChunkId);
+        results[0].FromNode.SourceContentHash.Should().Be(fromSourceContentHash);
+        results[0].ToNode.ChunkId.Should().Be(toChunkId);
+        results[0].ToNode.SourceContentHash.Should().Be(toSourceContentHash);
+    }
+
+    [Fact]
+    public async Task FindPathsAsync_ShouldSelectAndMapChunkAnchorColumns_WhenAllThreePositionsHaveChunkIdSourceContentHashAndSourceDocumentId()
+    {
+        // T17 (§4 row 83): SELECT-list + mapping assertions for SqlGraphRepository.FindPathsAsync.
+        // The recursive CTE must project ChunkId, SourceContentHash, AND SourceDocumentId (currently
+        // absent from the CTE entirely — a pre-existing gap; plan §7 ruled this in-scope). Every column
+        // must appear in both the anchor and recursive CTE members with matching ordinal position and
+        // type across the UNION ALL, following the existing CAST('' AS NVARCHAR(200)) AS SecondRelationship
+        // precedent for type-pinning. The manual GraphNodeDto construction must map all three anchors.
+        var sourceNodeId = Guid.NewGuid();
+        var intermediateNodeId = Guid.NewGuid();
+        var targetNodeId = Guid.NewGuid();
+
+        var sourceChunkId = "chunk-path-source-1";
+        var sourceSourceContentHash = "hash-path-source-aaa";
+        var sourceSourceDocumentId = Guid.NewGuid();
+        var intermediateChunkId = "chunk-path-intermediate-2";
+        var intermediateSourceContentHash = "hash-path-intermediate-bbb";
+        var intermediateSourceDocumentId = Guid.NewGuid();
+        var targetChunkId = "chunk-path-target-3";
+        var targetSourceContentHash = "hash-path-target-ccc";
+        var targetSourceDocumentId = Guid.NewGuid();
+
+        var connection = new FakeDbConnection();
+        connection.EnqueueReader(
+            CreateReader(CreatePathRow(
+                sourceId: sourceNodeId,
+                sourceName: "Battery",
+                sourceType: "Component",
+                sourceDescription: "12V battery",
+                sourceChunkId: sourceChunkId,
+                sourceSourceContentHash: sourceSourceContentHash,
+                sourceSourceDocumentId: sourceSourceDocumentId,
+                firstRelationship: "POWERS",
+                intermediateId: intermediateNodeId,
+                intermediateName: "Starter Motor",
+                intermediateType: "Component",
+                intermediateDescription: "Electric starter",
+                intermediateChunkId: intermediateChunkId,
+                intermediateSourceContentHash: intermediateSourceContentHash,
+                intermediateSourceDocumentId: intermediateSourceDocumentId,
+                secondRelationship: "DRIVES",
+                targetId: targetNodeId,
+                targetName: "Crankshaft",
+                targetType: "Component",
+                targetDescription: "Crank output",
+                targetChunkId: targetChunkId,
+                targetSourceContentHash: targetSourceContentHash,
+                targetSourceDocumentId: targetSourceDocumentId)),
+            command =>
+            {
+                // SELECT-list assertion: all three node positions must project all three anchor columns.
+                // Source position
+                command.CommandText.Should().Contain("SourceChunkId");
+                command.CommandText.Should().Contain("SourceSourceContentHash");
+                command.CommandText.Should().Contain("SourceSourceDocumentId");
+                // Intermediate position
+                command.CommandText.Should().Contain("IntermediateChunkId");
+                command.CommandText.Should().Contain("IntermediateSourceContentHash");
+                command.CommandText.Should().Contain("IntermediateSourceDocumentId");
+                // Target position
+                command.CommandText.Should().Contain("TargetChunkId");
+                command.CommandText.Should().Contain("TargetSourceContentHash");
+                command.CommandText.Should().Contain("TargetSourceDocumentId");
+            });
+        var sut = CreateSut(connection);
+
+        var results = await sut.FindPathsAsync(sourceNodeId, 2, 50);
+
+        // Mapping assertion: all three nodes must expose all three anchor values.
+        results.Should().ContainSingle();
+        // Source node
+        results[0].SourceNode.ChunkId.Should().Be(sourceChunkId);
+        results[0].SourceNode.SourceContentHash.Should().Be(sourceSourceContentHash);
+        results[0].SourceNode.SourceDocumentId.Should().Be(sourceSourceDocumentId);
+        // Intermediate node
+        results[0].IntermediateNode.ChunkId.Should().Be(intermediateChunkId);
+        results[0].IntermediateNode.SourceContentHash.Should().Be(intermediateSourceContentHash);
+        results[0].IntermediateNode.SourceDocumentId.Should().Be(intermediateSourceDocumentId);
+        // Target node
+        results[0].TargetNode.ChunkId.Should().Be(targetChunkId);
+        results[0].TargetNode.SourceContentHash.Should().Be(targetSourceContentHash);
+        results[0].TargetNode.SourceDocumentId.Should().Be(targetSourceDocumentId);
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -689,7 +938,9 @@ public sealed class SqlGraphRepositoryTests
         string? description = "Front brake assembly",
         Guid? sourceDocumentId = null,
         DateTimeOffset? createdAtUtc = null,
-        DateTimeOffset? updatedAtUtc = null) =>
+        DateTimeOffset? updatedAtUtc = null,
+        string? chunkId = null,
+        string? sourceContentHash = null) =>
         new()
         {
             Id = id ?? Guid.NewGuid(),
@@ -698,7 +949,9 @@ public sealed class SqlGraphRepositoryTests
             Description = description,
             SourceDocumentId = sourceDocumentId ?? Guid.NewGuid(),
             CreatedAtUtc = createdAtUtc ?? new DateTimeOffset(2026, 7, 10, 12, 0, 0, TimeSpan.Zero),
-            UpdatedAtUtc = updatedAtUtc ?? new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero)
+            UpdatedAtUtc = updatedAtUtc ?? new DateTimeOffset(2026, 7, 10, 13, 0, 0, TimeSpan.Zero),
+            ChunkId = chunkId,
+            SourceContentHash = sourceContentHash
         };
 
     private static GraphEdgeDto CreateEdge(
@@ -725,7 +978,9 @@ public sealed class SqlGraphRepositoryTests
         string? description = "Front brake assembly",
         Guid? sourceDocumentId = null,
         DateTimeOffset? createdAtUtc = null,
-        DateTimeOffset? updatedAtUtc = null) =>
+        DateTimeOffset? updatedAtUtc = null,
+        string? chunkId = null,
+        string? sourceContentHash = null) =>
         new()
         {
             ["Id"] = id ?? Guid.NewGuid(),
@@ -734,7 +989,9 @@ public sealed class SqlGraphRepositoryTests
             ["Description"] = description,
             ["SourceDocumentId"] = sourceDocumentId,
             ["CreatedAtUtc"] = createdAtUtc ?? new DateTimeOffset(2026, 7, 10, 12, 0, 0, TimeSpan.Zero),
-            ["UpdatedAtUtc"] = updatedAtUtc
+            ["UpdatedAtUtc"] = updatedAtUtc,
+            ["ChunkId"] = chunkId,
+            ["SourceContentHash"] = sourceContentHash
         };
 
     private static Dictionary<string, object?> CreateTraversalRow(
@@ -745,6 +1002,8 @@ public sealed class SqlGraphRepositoryTests
         Guid? fromSourceDocumentId = null,
         DateTimeOffset? fromCreatedAtUtc = null,
         DateTimeOffset? fromUpdatedAtUtc = null,
+        string? fromChunkId = null,
+        string? fromSourceContentHash = null,
         string relationshipType = "RELATED_TO",
         double weight = 0.5,
         string? context = "Linked in manual",
@@ -754,7 +1013,9 @@ public sealed class SqlGraphRepositoryTests
         string? toDescription = "Target description",
         Guid? toSourceDocumentId = null,
         DateTimeOffset? toCreatedAtUtc = null,
-        DateTimeOffset? toUpdatedAtUtc = null) =>
+        DateTimeOffset? toUpdatedAtUtc = null,
+        string? toChunkId = null,
+        string? toSourceContentHash = null) =>
         new()
         {
             ["FromId"] = fromId ?? Guid.NewGuid(),
@@ -764,6 +1025,8 @@ public sealed class SqlGraphRepositoryTests
             ["FromSourceDocumentId"] = fromSourceDocumentId ?? Guid.NewGuid(),
             ["FromCreatedAtUtc"] = fromCreatedAtUtc ?? new DateTimeOffset(2026, 7, 10, 12, 0, 0, TimeSpan.Zero),
             ["FromUpdatedAtUtc"] = fromUpdatedAtUtc,
+            ["FromChunkId"] = fromChunkId,
+            ["FromSourceContentHash"] = fromSourceContentHash,
             ["RelationshipType"] = relationshipType,
             ["Weight"] = weight,
             ["Context"] = context,
@@ -773,7 +1036,9 @@ public sealed class SqlGraphRepositoryTests
             ["ToDescription"] = toDescription,
             ["ToSourceDocumentId"] = toSourceDocumentId ?? Guid.NewGuid(),
             ["ToCreatedAtUtc"] = toCreatedAtUtc ?? new DateTimeOffset(2026, 7, 10, 12, 5, 0, TimeSpan.Zero),
-            ["ToUpdatedAtUtc"] = toUpdatedAtUtc
+            ["ToUpdatedAtUtc"] = toUpdatedAtUtc,
+            ["ToChunkId"] = toChunkId,
+            ["ToSourceContentHash"] = toSourceContentHash
         };
 
     private static Dictionary<string, object?> CreatePathRow(
@@ -781,32 +1046,50 @@ public sealed class SqlGraphRepositoryTests
         string sourceName = "Source",
         string sourceType = "Procedure",
         string? sourceDescription = "Source description",
+        string? sourceChunkId = null,
+        string? sourceSourceContentHash = null,
+        Guid? sourceSourceDocumentId = null,
         string firstRelationship = "LEADS_TO",
         Guid? intermediateId = null,
         string intermediateName = "Intermediate",
         string intermediateType = "Component",
         string? intermediateDescription = "Intermediate description",
+        string? intermediateChunkId = null,
+        string? intermediateSourceContentHash = null,
+        Guid? intermediateSourceDocumentId = null,
         string secondRelationship = "USES",
         Guid? targetId = null,
         string targetName = "Target",
         string targetType = "Specification",
-        string? targetDescription = "Target description") =>
+        string? targetDescription = "Target description",
+        string? targetChunkId = null,
+        string? targetSourceContentHash = null,
+        Guid? targetSourceDocumentId = null) =>
         new()
         {
             ["SourceId"] = sourceId ?? Guid.NewGuid(),
             ["SourceName"] = sourceName,
             ["SourceType"] = sourceType,
             ["SourceDescription"] = sourceDescription,
+            ["SourceChunkId"] = sourceChunkId,
+            ["SourceSourceContentHash"] = sourceSourceContentHash,
+            ["SourceSourceDocumentId"] = sourceSourceDocumentId,
             ["FirstRelationship"] = firstRelationship,
             ["IntermediateId"] = intermediateId ?? Guid.NewGuid(),
             ["IntermediateName"] = intermediateName,
             ["IntermediateType"] = intermediateType,
             ["IntermediateDescription"] = intermediateDescription,
+            ["IntermediateChunkId"] = intermediateChunkId,
+            ["IntermediateSourceContentHash"] = intermediateSourceContentHash,
+            ["IntermediateSourceDocumentId"] = intermediateSourceDocumentId,
             ["SecondRelationship"] = secondRelationship,
             ["TargetId"] = targetId ?? Guid.NewGuid(),
             ["TargetName"] = targetName,
             ["TargetType"] = targetType,
-            ["TargetDescription"] = targetDescription
+            ["TargetDescription"] = targetDescription,
+            ["TargetChunkId"] = targetChunkId,
+            ["TargetSourceContentHash"] = targetSourceContentHash,
+            ["TargetSourceDocumentId"] = targetSourceDocumentId
         };
 
     private static DbDataReader CreateReader(params IReadOnlyDictionary<string, object?>[] rows)

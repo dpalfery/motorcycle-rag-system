@@ -4,7 +4,7 @@ title: Database Schema Deployment
 doc-type: reference
 status: current
 owner: Platform maintainers
-last-reviewed: 2026-07-21
+last-reviewed: 2026-08-02
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -158,18 +158,20 @@ Pulumi provisions the server and database but does **not** deploy schema. The sc
 
 ## Historical Standalone Migration Scripts
 
-Six idempotent SQL files exist at `4-Persistence/MotorcycleRAG.Persistence/Sql/Migrations/`:
+The `Sql/Migrations/` folder was **retired on 2026-08-02** (decision D1-A of the cleanup plan [`2026-08-02-anchor-id-debt-cleanup.md`](../archive/plans/2026-08-02-anchor-id-debt-cleanup.md)). The standalone idempotent migration files it contained were **deployment-orphaned** — no path executed them — and were deleted. There is no migration runner; there is no secondary schema source.
 
-- `GraphTablesMigration.sql`
-- `BikeModelsMigration.sql`
-- `BikeModelCategoryMigration.sql`
-- `IngestionJobStageTrackingMigration.sql`
-- `ManualIngestionTrackingMigration.sql`
-- `UserOnboardingApprovalMigration.sql`
+**`schema.sql` is the single deployed source of truth** for the database schema. Both deployment paths documented above execute only `schema.sql`:
 
-Each is individually idempotent (uses `IF NOT EXISTS` guards). Their content has been absorbed into `schema.sql`. **Neither deployment path executes these files.** They are historical artifacts from earlier development iterations.
+- the CI/CD `sqlcmd` step (`.github/workflows/deploy.yml`, "Run Database Schema Migrations"), and
+- the local DbSetup CLI (`SqlScriptExecutor`).
 
-> Do not delete these files without explicit approval — they serve as a record of incremental additions.
+The vector↔graph anchor columns added by the archived plan `2026-08-01-vector-graph-anchor-id-contract.md` (decision D4) live in `schema.sql` — the guarded `COL_LENGTH('dbo.GraphNode', ...)` / `sys.indexes` block (lines ~1050–1062):
+
+- `ChunkId NVARCHAR(128) NULL` — canonical vector-chunk anchor (mirrors `dbo.IndexedChunks.ChunkId`).
+- `SourceContentHash NVARCHAR(128) NULL` — content-hash version tag (mirrors `ManualDocument.SourceContentHash`).
+- `IX_GraphNode_ChunkId` — filtered, non-null index (`WHERE [ChunkId] IS NOT NULL`) supporting the vector-to-graph retrieval hop.
+
+Retiring the folder also eliminated the latent `OBJECT_ID` ordering hazard that the standalone anchor-column migration carried (it assumed `dbo.GraphNode` already existed, which only the `schema.sql` guard batch guarantees).
 
 ## How to Evolve the Schema
 

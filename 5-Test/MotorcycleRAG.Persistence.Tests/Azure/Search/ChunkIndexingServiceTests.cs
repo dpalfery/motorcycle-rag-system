@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using global::Azure;
 using Azure.Core;
@@ -259,7 +260,7 @@ public sealed class ChunkIndexingServiceTests
     {
         var sut = CreateSut();
 
-        var act = async () => await sut.IndexFromJsonlAsync(null!, "upload-1");
+        var act = async () => await sut.IndexFromJsonlAsync(null!, "upload-1", Guid.Empty, Guid.Empty, null);
 
         await act.Should().ThrowAsync<ArgumentNullException>().WithParameterName("jsonlStream");
     }
@@ -273,7 +274,7 @@ public sealed class ChunkIndexingServiceTests
         var sut = CreateSut();
         using var stream = CreateJsonlStream();
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, uploadId!);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, uploadId!, Guid.Empty, Guid.Empty, null);
 
         await act.Should().ThrowAsync<ArgumentException>().WithParameterName("uploadId");
     }
@@ -286,7 +287,7 @@ public sealed class ChunkIndexingServiceTests
         var sut = CreateSut();
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(""));
 
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-empty");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-empty", Guid.Empty, Guid.Empty, null);
 
         result.TotalParsed.Should().Be(0);
         result.BatchCount.Should().Be(0);
@@ -307,7 +308,7 @@ public sealed class ChunkIndexingServiceTests
         var jsonl = "NOT VALID JSON\n{\"id\":\"chunk-valid\",\"category\":\"sport\",\"content\":\"test content\",\"title\":\"test\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-skip");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-skip", Guid.Empty, Guid.Empty, null);
 
         // Only the valid JSON line is parsed; the malformed line is logged and skipped.
         result.TotalParsed.Should().Be(1);
@@ -369,7 +370,7 @@ public sealed class ChunkIndexingServiceTests
         var jsonl = "\n\n{\"id\":\"chunk-1\",\"category\":\"sport\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n  \n{\"id\":\"chunk-2\",\"category\":\"sport\",\"content\":\"test2\",\"title\":\"t2\",\"documentType\":\"manual\",\"contentVector\":[0.3,0.4]}\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
-        var result = await sut.IndexFromJsonlAsync(stream, "upload-blank-lines");
+        var result = await sut.IndexFromJsonlAsync(stream, "upload-blank-lines", Guid.Empty, Guid.Empty, null);
 
         // Only 2 valid records should be parsed, blank lines skipped
         result.TotalParsed.Should().Be(2);
@@ -391,7 +392,7 @@ public sealed class ChunkIndexingServiceTests
         var jsonl = "{\"id\":\"chunk-1\",\"category\":\"dirt\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-missing-index");
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-missing-index", Guid.Empty, Guid.Empty, null);
 
         await act.Should().ThrowAsync<SearchIndexNotFoundException>()
             .WithMessage("*motorcycle-dirt*");
@@ -449,7 +450,7 @@ public sealed class ChunkIndexingServiceTests
         // SearchIndexNotFoundException — the exception is swallowed by the catch (Exception)
         // block because IsNonTransient(InvalidOperationException) returns false.
         // IndexFromJsonlAsync completes without throwing.
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-index-exists");
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-index-exists", Guid.Empty, Guid.Empty, null);
         await act.Should().NotThrowAsync();
     }
 
@@ -576,7 +577,7 @@ public sealed class ChunkIndexingServiceTests
         var jsonl = "{\"id\":\"chunk-success\",\"category\":\"sport\",\"make\":\"Honda\",\"model\":\"CBR600RR\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
-        var result = await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), CancellationToken.None);
+        var result = await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), Guid.Empty, Guid.Empty, null, CancellationToken.None);
 
         result.TotalParsed.Should().Be(1);
         result.Outcomes.Should().NotBeEmpty();
@@ -618,7 +619,7 @@ public sealed class ChunkIndexingServiceTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("{\"id\":\"chunk-defaults\",\"category\":\"sport\",\"content\":\"content\"}"));
 
         // Act
-        await sut.IndexFromJsonlAsync(stream, "upload-defaults");
+        await sut.IndexFromJsonlAsync(stream, "upload-defaults", Guid.Empty, Guid.Empty, null);
 
         // Assert
         indexedRecord.Should().NotBeNull();
@@ -698,7 +699,7 @@ public sealed class ChunkIndexingServiceTests
         var jsonl = "{\"id\":\"chunk-cancel\",\"category\":\"sport\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-cancel-test", cts.Token);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-cancel-test", Guid.Empty, Guid.Empty, null, cts.Token);
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
@@ -754,10 +755,174 @@ public sealed class ChunkIndexingServiceTests
         var jsonl = "{\"id\":\"chunk-timeout\",\"category\":\"sport\",\"content\":\"test\",\"title\":\"t\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
-        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-timeout-test", CancellationToken.None);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, "upload-timeout-test", Guid.Empty, Guid.Empty, null, CancellationToken.None);
 
         await act.Should().ThrowAsync<TimeoutException>()
             .WithMessage("*timed out*");
+    }
+
+
+    [Theory]
+    [InlineData(typeof(IChunkIndexingService))]
+    [InlineData(typeof(ChunkIndexingService))]
+    [InlineData(typeof(InMemorySearchShimChunkIndexingService))]
+    public void IndexFromJsonlAsync_ShouldExposeExactlyOneAnchorParameterOverload_OnInterfaceAndImplementations(Type type)
+    {
+        // T14 (plan §5/§10b2): the contract must declare EXACTLY ONE IndexFromJsonlAsync method,
+        // shaped (Stream jsonlStream, string uploadId, Guid indexedArtifactId, Guid ingestionJobId,
+        // string sourceContentHash, CancellationToken ct = default), on IChunkIndexingService and
+        // both implementations. Removing the transitional 3-parameter overload closes the §7
+        // null-clobber footgun permanently: no future caller can silently omit anchors and re-open
+        // the class of bug where mergeOrUpload treated an explicit-null anchor as "clear this field".
+        // RED until T14 deletes the legacy 3-parameter overload from all three types.
+        var overloads = type
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(m => m.Name == nameof(IChunkIndexingService.IndexFromJsonlAsync))
+            .ToList();
+
+        overloads.Should().HaveCount(1,
+            $"{type.FullName} must declare exactly one IndexFromJsonlAsync method after T14 contract closure — " +
+            "a second (e.g. legacy 3-parameter) overload would re-open the §7 null-clobber footgun. " +
+            "Found: {0}", string.Join(", ", overloads.Select(o => $"({string.Join(", ", o.GetParameters().Select(p => p.ParameterType.Name))})")));
+
+        var sole = overloads.Single();
+        var p = sole.GetParameters();
+        p.Length.Should().Be(6,
+            $"{type.FullName}.IndexFromJsonlAsync must take 6 parameters (Stream, string, Guid, Guid, string?, CancellationToken)");
+        p[0].ParameterType.Should().Be<Stream>();
+        p[1].ParameterType.Should().Be<string>();
+        p[2].ParameterType.Should().Be<Guid>();
+        p[3].ParameterType.Should().Be<Guid>();
+        p[4].ParameterType.Should().Be<string>(
+            $"{type.FullName}.IndexFromJsonlAsync parameter 5 must be string (sourceContentHash) — " +
+            "the anchor contract requires it (plan D3/T7)");
+        p[5].ParameterType.Should().Be<CancellationToken>();
+
+        // The parameter names themselves are part of the contract (plan §5 T14: "indexedArtifactId,
+        // ingestionJobId, sourceContentHash"). Assert them so a rename can't silently break callers
+        // that pass the anchors by name.
+        p[2].Name.Should().Be("indexedArtifactId");
+        p[3].Name.Should().Be("ingestionJobId");
+        p[4].Name.Should().Be("sourceContentHash");
+    }
+
+    [Fact]
+    public async Task IndexFromJsonlAsync_WhenCalledWithAnchorParameters_ShouldStampEveryDocumentWithIndexedArtifactIdIngestionJobIdAndSourceContentHash()
+    {
+        // D3/T7: given a JSONL stream with 2 chunk records, every document in the batch sent to
+        // SearchClient.MergeOrUploadDocumentsAsync must carry indexedArtifactId/ingestionJobId
+        // (as strings matching the passed GUIDs) and sourceContentHash == "h1". Captured via
+        // Moq's argument capture on the mocked SearchClient — not inferred from the return value.
+
+        var realPipeline = new SearchIndexResiliencePipelineProvider();
+        _clientFactoryMock.Setup(x => x.DefaultCategory).Returns(MotorcycleCategory.Sport);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns((MotorcycleCategory c) => $"motorcycle-{c.Value}");
+        _clientFactoryMock
+            .Setup(x => x.IndexExistsAsync(MotorcycleCategory.Sport, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var indexResult = CreateIndexDocumentsResult(
+            ("chunk-anchor-1", true, 201, null),
+            ("chunk-anchor-2", true, 201, null));
+        var response = global::Azure.Response.FromValue(indexResult, new Mock<global::Azure.Response>().Object);
+
+        IReadOnlyList<ChunkIndexingService.ChunkIndexRecord>? capturedBatch = null;
+        var searchClientMock = new Mock<SearchClient>();
+        searchClientMock
+            .Setup(c => c.MergeOrUploadDocumentsAsync(
+                It.IsAny<IEnumerable<ChunkIndexingService.ChunkIndexRecord>>(),
+                It.IsAny<IndexDocumentsOptions>(),
+                It.IsAny<CancellationToken>()))
+            .Callback((IEnumerable<ChunkIndexingService.ChunkIndexRecord> documents, IndexDocumentsOptions _, CancellationToken _) =>
+                capturedBatch = documents.ToList())
+            .ReturnsAsync(response);
+        _clientFactoryMock.Setup(x => x.GetClient(MotorcycleCategory.Sport)).Returns(searchClientMock.Object);
+
+        var sut = new ChunkIndexingService(
+            _clientFactoryMock.Object,
+            _categoryClassifierMock.Object,
+            realPipeline,
+            TestHelpers.OptionsFor(_searchOptions),
+            TestHelpers.CreateNullLogger<ChunkIndexingService>());
+
+        var jsonl =
+            "{\"id\":\"chunk-anchor-1\",\"category\":\"sport\",\"content\":\"c1\",\"title\":\"t1\",\"documentType\":\"manual\",\"contentVector\":[0.1,0.2]}\n" +
+            "{\"id\":\"chunk-anchor-2\",\"category\":\"sport\",\"content\":\"c2\",\"title\":\"t2\",\"documentType\":\"manual\",\"contentVector\":[0.3,0.4]}\n";
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
+
+        var indexedArtifactId = Guid.NewGuid();
+        var ingestionJobId = Guid.NewGuid();
+        const string sourceContentHash = "h1";
+
+        await sut.IndexFromJsonlAsync(stream, "upload-anchor-test", indexedArtifactId, ingestionJobId, sourceContentHash, CancellationToken.None);
+
+        capturedBatch.Should().NotBeNull(
+            "the mocked SearchClient.MergeOrUploadDocumentsAsync must be invoked with the parsed batch");
+        capturedBatch!.Should().HaveCount(2);
+
+        foreach (var document in capturedBatch!)
+        {
+            var documentType = document!.GetType();
+            var indexedArtifactIdValue = documentType.GetProperty("IndexedArtifactId")?.GetValue(document) as string;
+            var ingestionJobIdValue = documentType.GetProperty("IngestionJobId")?.GetValue(document) as string;
+            var sourceContentHashValue = documentType.GetProperty("SourceContentHash")?.GetValue(document) as string;
+
+            indexedArtifactIdValue.Should().Be(
+                indexedArtifactId.ToString(),
+                "every stamped document must carry the passed indexedArtifactId as a string (plan decision D3, T7)");
+            ingestionJobIdValue.Should().Be(
+                ingestionJobId.ToString(),
+                "every stamped document must carry the passed ingestionJobId as a string (plan decision D3, T7)");
+            sourceContentHashValue.Should().Be(
+                sourceContentHash,
+                "every stamped document must carry the passed sourceContentHash (plan decision D3, T7)");
+        }
+    }
+
+    [Fact]
+    public void ChunkIndexRecord_WhenAnchorValuesAreNull_ShouldOmitThemFromSerializedJson()
+    {
+        // D3/T7: When anchor values are null (unset), they must be omitted from the serialized JSON
+        // entirely, not written as explicit `null`. This prevents the legacy 3-parameter overload
+        // (which delegates with Guid.Empty/empty string → null) from wiping anchors off already-indexed
+        // documents via mergeOrUpload.
+        using var jsonStream = new MemoryStream();
+        using var writer = new System.Text.Json.Utf8JsonWriter(jsonStream);
+
+        var record = new ChunkIndexingService.ChunkIndexRecord
+        {
+            Id = "chunk-1",
+            Title = "Test",
+            Content = "Content",
+            DocumentType = "manual",
+            Category = "sport",
+            ContentVector = new[] { 0.1f, 0.2f },
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            IndexedArtifactId = null,      // Unset → should be omitted
+            IngestionJobId = null,         // Unset → should be omitted
+            SourceContentHash = null       // Unset → should be omitted
+        };
+
+        System.Text.Json.JsonSerializer.Serialize(writer, record);
+        writer.Flush();
+
+        var json = Encoding.UTF8.GetString(jsonStream.ToArray());
+        var doc = System.Text.Json.JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        // Assert: the three anchor fields must NOT be present in the JSON
+        root.TryGetProperty("indexedArtifactId", out _).Should().BeFalse(
+            "null anchor fields must be omitted from JSON entirely (prevents merge-related anchor wipe)");
+        root.TryGetProperty("ingestionJobId", out _).Should().BeFalse(
+            "null anchor fields must be omitted from JSON entirely (prevents merge-related anchor wipe)");
+        root.TryGetProperty("sourceContentHash", out _).Should().BeFalse(
+            "null anchor fields must be omitted from JSON entirely (prevents merge-related anchor wipe)");
+
+        // Verify that present fields are still there
+        root.TryGetProperty("id", out var idElem).Should().BeTrue();
+        idElem.GetString().Should().Be("chunk-1");
     }
 
     private static MemoryStream CreateJsonlStream(params (string id, string category)[] chunks)

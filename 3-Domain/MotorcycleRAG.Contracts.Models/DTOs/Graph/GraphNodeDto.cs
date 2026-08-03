@@ -27,6 +27,19 @@ public sealed class GraphNodeDto
     /// <summary>GUID of the canonical <c>ManualDocument</c> this node was extracted from.</summary>
     public Guid? SourceDocumentId { get; set; }
 
+    /// <summary>
+    /// The canonical vector-chunk anchor ID (format: <c>{uploadId}-pdf-{i}</c>).
+    /// Holds the Azure AI Search / <c>dbo.IndexedChunks.ChunkId</c> key of the chunk this node was sourced from.
+    /// Null for nodes not sourced from a chunk.
+    /// </summary>
+    public string? ChunkId { get; set; }
+
+    /// <summary>
+    /// Version/synchronization tag, mirroring <c>ManualDocument.SourceContentHash</c>.
+    /// Used to detect drift between a vector chunk and its graph node.
+    /// </summary>
+    public string? SourceContentHash { get; set; }
+
     /// <summary>UTC timestamp when this node was first created.</summary>
     public DateTimeOffset CreatedAtUtc { get; set; } = DateTimeOffset.UtcNow;
 

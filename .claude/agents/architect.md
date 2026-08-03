@@ -1,7 +1,7 @@
 ---
 name: architect
 description: "Produces an implementation plan before coding: decomposes the task, resolves design decisions, negotiates scope. Use when a non-trivial change needs planning before implementation. Plans only — does not write source code, run mutating commands, or author formal spec documents."
-model: sonnet
+model: opus
 tools: Read, Write, Edit, Grep, Glob, WebSearch, WebFetch
 author: David R Palfery
 version: 1.0.0

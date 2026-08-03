@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -27,6 +28,7 @@ public class ProcessorArtifactServiceTests
     private readonly Mock<IIndexedChunkRepository> _chunkRepoMock;
     private readonly Mock<IIngestionSourceAccessTokenService> _tokenServiceMock;
     private readonly Mock<IIngestionJobService> _ingestionJobServiceMock;
+    private readonly Mock<IManualDocumentRepository> _manualDocumentRepoMock;
     private readonly ProcessorArtifactService _sut;
 
     public ProcessorArtifactServiceTests()
@@ -38,6 +40,7 @@ public class ProcessorArtifactServiceTests
         _chunkRepoMock = new Mock<IIndexedChunkRepository>();
         _tokenServiceMock = new Mock<IIngestionSourceAccessTokenService>();
         _ingestionJobServiceMock = new Mock<IIngestionJobService>();
+        _manualDocumentRepoMock = new Mock<IManualDocumentRepository>();
 
         var blobOptions = Options.Create(new BlobStorageOptions());
 
@@ -50,6 +53,7 @@ public class ProcessorArtifactServiceTests
             _chunkRepoMock.Object,
             _tokenServiceMock.Object,
             _ingestionJobServiceMock.Object,
+            _manualDocumentRepoMock.Object,
             NullLogger<ProcessorArtifactService>.Instance);
     }
 
@@ -190,7 +194,7 @@ public class ProcessorArtifactServiceTests
         _blobStorageMock.Verify(
             x => x.UploadAsync("raw-uploads", $"graph-entities/{uploadId}/entities.json", It.IsAny<Stream>(), "application/json", It.IsAny<CancellationToken>()),
             Times.Once);
-        _chunkIndexingMock.Verify(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _chunkIndexingMock.Verify(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -203,7 +207,7 @@ public class ProcessorArtifactServiceTests
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("Search chunk artifact content must be seekable for indexing.");
-        _chunkIndexingMock.Verify(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        _chunkIndexingMock.Verify(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), It.IsAny<string>(), It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -219,7 +223,7 @@ public class ProcessorArtifactServiceTests
             new("chunk-2", true, null, 1, 1, "file.pdf")
         };
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(2, 1, outcomes));
         _jobRepoMock
             .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.Completed, 2, 2, null, It.IsAny<CancellationToken>()))
@@ -260,7 +264,7 @@ public class ProcessorArtifactServiceTests
             new("chunk-2", false, "embedding failure", 1, 1, "file.pdf")
         };
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(2, 1, outcomes));
         _jobRepoMock
             .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.PartiallyCompleted, 2, 1, "Failed to index 1 chunk(s)", It.IsAny<CancellationToken>()))
@@ -291,7 +295,7 @@ public class ProcessorArtifactServiceTests
         var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
         SetUpJobFound(uploadId, job);
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(1, 1, [new ChunkIndexOutcome("chunk-1", true, null, 1, 0, "file.pdf")]));
         _jobRepoMock
             .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, IngestionJobStatus.Indexing, IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()))
@@ -315,7 +319,7 @@ public class ProcessorArtifactServiceTests
         var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
         SetUpJobFound(uploadId, job);
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(1, 1, [new ChunkIndexOutcome("chunk-1", true, null, 1, 0, "file.pdf")]));
         _jobRepoMock
             .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()))
@@ -328,15 +332,13 @@ public class ProcessorArtifactServiceTests
     }
 
     [Fact]
-    public async Task UploadArtifactAsync_SearchChunksArtifact_NoJobFound_SkipsCatalogWriteButStillSetsBlobMetadata()
+    public async Task UploadArtifactAsync_SearchChunksArtifact_NoJobFound_SkipsCatalogWriteAndSkipsBlobMetadata()
     {
         var uploadId = Guid.NewGuid().ToString();
         SetUpNoJobFound(uploadId);
 
-        var outcomes = new List<ChunkIndexOutcome> { new("chunk-1", true, null, 1, 0, "file.pdf") };
-        _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ChunkIndexingResult(1, 1, outcomes));
+        // D3: null job → no anchors → no indexing → no artifactState → SetMetadataAsync is not invoked.
+        // Indexing and catalog operations are never reached in the no-job path post-T8.
 
         var request = new ProcessorArtifactUploadRequest(uploadId, "search-chunks", new MemoryStream(new byte[] { 1 }), "application/jsonl");
 
@@ -348,20 +350,24 @@ public class ProcessorArtifactServiceTests
         _chunkRepoMock.Verify(x => x.UpsertManyAsync(It.IsAny<IReadOnlyCollection<IndexedChunkDto>>(), It.IsAny<CancellationToken>()), Times.Never);
         _jobRepoMock.Verify(x => x.TryTransitionToTerminalAsync(It.IsAny<Guid>(), It.IsAny<IngestionJobStatus>(), It.IsAny<IngestionJobStatus>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
         _blobStorageMock.Verify(
-            x => x.SetMetadataAsync("search-chunks", $"{uploadId}/chunks.jsonl", It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()),
-            Times.Once);
+            x => x.SetMetadataAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
 
     [Fact]
     public async Task UploadArtifactAsync_SearchChunksArtifact_MetadataUpdateFails_DoesNotThrowAndUploadStillSucceeds()
     {
         var uploadId = Guid.NewGuid().ToString();
-        SetUpNoJobFound(uploadId);
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
+        SetUpJobFound(uploadId, job);
 
         var outcomes = new List<ChunkIndexOutcome> { new("chunk-1", true, null, 1, 0, "file.pdf") };
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(1, 1, outcomes));
+        _jobRepoMock
+            .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.Completed, 1, 1, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
         _blobStorageMock
             .Setup(x => x.SetMetadataAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("metadata store unavailable"));
@@ -371,6 +377,9 @@ public class ProcessorArtifactServiceTests
         var act = async () => await _sut.UploadArtifactAsync(request);
 
         await act.Should().NotThrowAsync();
+        _blobStorageMock.Verify(
+            x => x.SetMetadataAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<Dictionary<string, string>>(), It.IsAny<CancellationToken>()),
+            Times.Once);
     }
 
     [Fact]
@@ -381,7 +390,7 @@ public class ProcessorArtifactServiceTests
         SetUpJobFound(uploadId, job);
 
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("search index unavailable"));
         _jobRepoMock
             .Setup(x => x.TryTransitionToTerminalAsync(job.IngestionJobId, It.IsAny<IngestionJobStatus>(), IngestionJobStatus.Failed, 0, 0, It.Is<string>(s => s.Contains("search index unavailable")), It.IsAny<CancellationToken>()))
@@ -405,7 +414,7 @@ public class ProcessorArtifactServiceTests
         SetUpNoJobFound(uploadId);
 
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("search index unavailable"));
 
         var request = new ProcessorArtifactUploadRequest(uploadId, "search-chunks", new MemoryStream(new byte[] { 1 }), "application/jsonl");
@@ -426,7 +435,7 @@ public class ProcessorArtifactServiceTests
         SetUpJobFound(uploadId, job);
 
         _chunkIndexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), uploadId, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("search index unavailable"));
         _jobRepoMock
             .Setup(x => x.TryTransitionToTerminalAsync(It.IsAny<Guid>(), It.IsAny<IngestionJobStatus>(), It.IsAny<IngestionJobStatus>(), It.IsAny<int?>(), It.IsAny<int?>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
@@ -437,6 +446,199 @@ public class ProcessorArtifactServiceTests
         var act = async () => await _sut.UploadArtifactAsync(request);
 
         await act.Should().NotThrowAsync();
+    }
+
+    // --- T8 (plan: 2026-08-01-vector-graph-anchor-id-contract, decision D3) ---
+    // ProcessSearchChunksAsync must resolve indexedArtifactId/ingestionJobId/sourceContentHash BEFORE
+    // calling IChunkIndexingService.IndexFromJsonlAsync, and must call the 5-parameter overload with
+    // those resolved values -- not the legacy 3-parameter overload, which today's production code calls
+    // and which only ever carries empty/default anchors. These tests mock IChunkIndexingService directly
+    // (not the real ChunkIndexingService implementation), so the legacy overload's internal delegation to
+    // the 5-parameter overload with Guid.Empty (a ChunkIndexingService implementation detail) is not in
+    // play here -- a call to the mocked 3-parameter overload can never vacuously satisfy an assertion
+    // written against the mocked 5-parameter overload's captured arguments.
+
+    [Fact]
+    public async Task UploadArtifactAsync_SearchChunksArtifact_ResolvesAnchorsBeforeIndexing_PassesNonDefaultValuesToFiveParameterOverload()
+    {
+        var uploadId = Guid.NewGuid().ToString();
+
+        // Set up the ManualDocument mock with a SourceContentHash
+        var testHash = "sha256-abc123def456";
+        var testDocId = Guid.NewGuid();
+        var manualDocument = ManualDocument.Create(
+            documentId: testDocId,
+            sourceFileName: "test.pdf",
+            canonicalBlobContainer: "container",
+            canonicalBlobPath: "path",
+            documentType: "manual-pdf",
+            sourceContentHash: testHash);
+
+        // Create a job with an actual ManualDocumentId so it will resolve to the test document
+        var job = IngestionJob.Rehydrate(
+            id: 0,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Queued,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: uploadId,
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: testDocId,  // Set the ManualDocumentId to match our test document
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
+
+        SetUpJobFound(uploadId, job);
+
+        _manualDocumentRepoMock
+            .Setup(x => x.GetDocumentByIdAsync(testDocId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(manualDocument);
+
+        var outcomes = new List<ChunkIndexOutcome>
+        {
+            new("chunk-1", true, null, 1, 0, "file.pdf"),
+            new("chunk-2", true, null, 1, 1, "file.pdf")
+        };
+        var indexingResult = new ChunkIndexingResult(2, 1, outcomes);
+
+        // GREEN production code must call the sole (5-parameter) IndexFromJsonlAsync overload, with the
+        // anchors already resolved. Capture the arguments actually observed at call time -- not inferred
+        // from the return value, per the test-contract row.
+        // (T14 contract closure: the legacy 3-parameter overload referenced by an earlier revision of
+        // this test has been removed entirely; the "exactly one overload" guarantee is now enforced
+        // structurally by IndexFromJsonlAsync_ShouldExposeExactlyOneAnchorParameterOverload_OnInterfaceAndImplementations.)
+        var fiveParameterOverloadInvoked = false;
+        var capturedIndexedArtifactId = Guid.Empty;
+        var capturedIngestionJobId = Guid.Empty;
+        string? capturedSourceContentHash = null;
+
+        _chunkIndexingMock
+            .Setup(x => x.IndexFromJsonlAsync(
+                It.IsAny<Stream>(),
+                uploadId,
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Stream, string, Guid, Guid, string, CancellationToken>((_, _, indexedArtifactId, ingestionJobId, sourceContentHash, _) =>
+            {
+                fiveParameterOverloadInvoked = true;
+                capturedIndexedArtifactId = indexedArtifactId;
+                capturedIngestionJobId = ingestionJobId;
+                capturedSourceContentHash = sourceContentHash;
+            })
+            .ReturnsAsync(indexingResult);
+
+        var request = new ProcessorArtifactUploadRequest(uploadId, "search-chunks", new MemoryStream(new byte[] { 1 }), "application/jsonl");
+
+        var result = await _sut.UploadArtifactAsync(request);
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.Success);
+
+        // The heart of the assertion: the sole (5-parameter) overload must be invoked, and it must
+        // carry anchors that were already resolved -- not the Guid.Empty/null values a post-hoc merge
+        // would leave behind.
+        fiveParameterOverloadInvoked.Should().BeTrue(
+            "ProcessSearchChunksAsync must resolve indexedArtifactId/ingestionJobId/sourceContentHash and call " +
+            "the IndexFromJsonlAsync overload with them (plan decision D3) -- otherwise the anchors are never " +
+            "attached to the vector write");
+        capturedIndexedArtifactId.Should().NotBe(Guid.Empty,
+            "the artifact ID must be pre-allocated (Guid.NewGuid()) before the index call, not left as the default");
+        capturedIngestionJobId.Should().Be(job.IngestionJobId,
+            "the ingestion job lookup must complete and its resolved ID must be passed into the index call, not resolved afterwards");
+        capturedSourceContentHash.Should().NotBeNullOrWhiteSpace(
+            "the owning ManualDocument.SourceContentHash must be resolved and passed into the index call");
+
+        // Regression guard: the existing post-index persistence calls are unchanged in shape/values, AND
+        // the persisted artifact/chunks reuse the SAME pre-allocated ID that was passed into the index
+        // call above -- proving the anchor is a single resolved value, not two independently generated GUIDs.
+        _artifactRepoMock.Verify(
+            x => x.UpsertAsync(
+                It.Is<IndexedArtifactDto>(a =>
+                    a.IndexedArtifactId == capturedIndexedArtifactId &&
+                    a.IngestionJobId == job.IngestionJobId &&
+                    a.State == IndexedArtifactState.Completed &&
+                    a.IndexedChunkCount == 2 &&
+                    a.FailedChunkCount == 0 &&
+                    a.FailureReason == null),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+        _chunkRepoMock.Verify(
+            x => x.UpsertManyAsync(
+                It.Is<IReadOnlyCollection<IndexedChunkDto>>(chunks =>
+                    chunks.Count == 2 && chunks.All(chunk => chunk.IndexedArtifactId == capturedIndexedArtifactId)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    // --- T5 (plan: 2026-08-02-anchor-id-debt-cleanup, D7) ---
+    // Regression guard for the §7 null-clobber defense at the T8 (initial-ingestion) call site.
+    // Mirrors ChunkReprocessServiceTests.ReprocessByJobIdAsync_JobHasNoManualDocument_PassesNullSourceContentHash_NeverEmptyString:
+    // a freshly-created job (IngestionJob.Create always leaves ManualDocumentId null -- e.g. a
+    // StructuredSpecification/Batch-shaped upload, or any PDFManual job whose manual link hasn't been
+    // set) must resolve to a null sourceContentHash passed into IndexFromJsonlAsync, NEVER string.Empty.
+    // An empty string would serialize as a real key and Azure AI Search mergeOrUpload would treat it as
+    // "clear this field", silently wiping a real hash already indexed for those chunks.
+    [Fact]
+    public async Task UploadArtifactAsync_SearchChunksArtifact_JobHasNoManualDocument_PassesNullSourceContentHash_NeverEmptyString()
+    {
+        var uploadId = Guid.NewGuid().ToString();
+
+        // IngestionJob.Create always leaves ManualDocumentId null -- the freshly-created-job shape.
+        var job = IngestionJob.Create(IngestionJobType.PDFManual, uploadId, createdBySubject: null);
+        SetUpJobFound(uploadId, job);
+
+        var outcomes = new List<ChunkIndexOutcome> { new("chunk-1", true, null, 1, 0, "file.pdf") };
+        var indexingResult = new ChunkIndexingResult(1, 1, outcomes);
+
+        // Sentinel-initialize so a "never called" failure is distinguishable from a real null pass.
+        string? capturedSourceContentHash = "unset-sentinel";
+        _chunkIndexingMock
+            .Setup(x => x.IndexFromJsonlAsync(
+                It.IsAny<Stream>(),
+                uploadId,
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string?>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Stream, string, Guid, Guid, string?, CancellationToken>((_, _, _, _, sourceContentHash, _) =>
+            {
+                capturedSourceContentHash = sourceContentHash;
+            })
+            .ReturnsAsync(indexingResult);
+
+        var request = new ProcessorArtifactUploadRequest(uploadId, "search-chunks", new MemoryStream(new byte[] { 1 }), "application/jsonl");
+
+        var result = await _sut.UploadArtifactAsync(request);
+
+        result.Status.Should().Be(ProcessorArtifactOperationStatus.Success);
+        capturedSourceContentHash.Should().BeNull(
+            "a job with no ManualDocumentId must resolve to a null sourceContentHash, not an unresolved sentinel " +
+            "or an empty string -- null is what the T7 JsonIgnore(WhenWritingNull) guard omits from the merge payload");
+        capturedSourceContentHash.Should().NotBe(string.Empty,
+            "string.Empty is NOT an acceptable substitute for null here -- mergeOrUpload still writes an empty " +
+            "string as a real field value, clobbering any real hash already indexed for this chunk");
+        _manualDocumentRepoMock.Verify(
+            x => x.GetDocumentByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
+            Times.Never,
+            "when ManualDocumentId is null the helper must short-circuit and never consult the repository");
     }
 
     [Fact]

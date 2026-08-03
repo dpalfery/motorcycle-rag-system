@@ -70,7 +70,7 @@ public class ChunkIndexingServiceTimeoutTests
 
         // Act + Assert: the call must complete (not hang) and surface a TimeoutException whose
         // message references the configured BatchIndexTimeoutSeconds.
-        var act = async () => await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), CancellationToken.None);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), Guid.Empty, Guid.Empty, null, CancellationToken.None);
 
         var thrown = await act.Should().ThrowAsync<TimeoutException>();
         thrown.Which.Message.Should().Contain("timed out");
@@ -108,7 +108,7 @@ public class ChunkIndexingServiceTimeoutTests
 
         // Act + Assert: exactly one call to MergeOrUploadDocumentsAsync (no retries), and the
         // surfaced exception is the original 404 RequestFailedException.
-        var act = async () => await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), CancellationToken.None);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), Guid.Empty, Guid.Empty, null, CancellationToken.None);
 
         (await act.Should().ThrowAsync<RequestFailedException>()).Which.Status.Should().Be(404);
 
@@ -154,7 +154,7 @@ public class ChunkIndexingServiceTimeoutTests
 
         // Act + Assert: the call must surface the 500 (after retries), and the client must have
         // been invoked more than once (proving the transient retry happened).
-        var act = async () => await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), CancellationToken.None);
+        var act = async () => await sut.IndexFromJsonlAsync(stream, Guid.NewGuid().ToString(), Guid.Empty, Guid.Empty, null, CancellationToken.None);
 
         await act.Should().ThrowAsync<RequestFailedException>();
 

@@ -1,7 +1,7 @@
 ---
 description: "React UI implementation: components, hooks, client-side state, and MUI (Pigment CSS) styling with feature-slice design. Use for any React frontend — whether served in a browser or hosted in a desktop WebView (e.g. Tauri). Does not handle native or mobile UI, backend services, the desktop/native core, or test authoring."
 mode: subagent
-model: wafer/MiniMax-M3
+model: opencode-go/gpt-5.6-luna
 reasoningEffort: medium
 permission:
   external_directory: deny

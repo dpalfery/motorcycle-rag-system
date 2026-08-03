@@ -1,7 +1,7 @@
 ---
 name: architect-v3
 description: "Test-first planning agent: produces an implementation plan before coding, decomposed so the failing tests that define each task's done-ness are specified first (Test contract). Resolves design decisions, negotiates scope, and emits a plan the conductor-v3 skill executes as a Red→Green pipeline. Plans only — does not write source code, run mutating commands, or author formal spec documents."
-model: sonnet
+model: opus
 tools: Read, Write, Edit, Grep, Glob, WebSearch, WebFetch
 author: David R Palfery
 version: 1.0.0

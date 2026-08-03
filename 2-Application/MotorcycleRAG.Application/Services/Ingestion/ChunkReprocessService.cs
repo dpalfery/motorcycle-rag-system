@@ -25,6 +25,7 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
     private readonly BlobStorageOptions _blobStorageOptions;
     private readonly IngestionOptions _ingestionOptions;
     private readonly ILogger<ChunkReprocessService> _logger;
+    private readonly IManualDocumentRepository _manualDocumentRepository;
 
     public ChunkReprocessService(
         IIndexedArtifactRepository artifactRepository,
@@ -34,7 +35,8 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
         IChunkIndexingService indexingService,
         IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> ingestionOptions,
-        ILogger<ChunkReprocessService> logger) {
+        ILogger<ChunkReprocessService> logger,
+        IManualDocumentRepository manualDocumentRepository) {
         _artifactRepository = artifactRepository ?? throw new ArgumentNullException(nameof(artifactRepository));
         _chunkRepository = chunkRepository ?? throw new ArgumentNullException(nameof(chunkRepository));
         _jobRepository = jobRepository ?? throw new ArgumentNullException(nameof(jobRepository));
@@ -43,6 +45,7 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _ingestionOptions = ingestionOptions?.Value ?? throw new ArgumentNullException(nameof(ingestionOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _manualDocumentRepository = manualDocumentRepository ?? throw new ArgumentNullException(nameof(manualDocumentRepository));
     }
 
     /// <inheritdoc />
@@ -92,7 +95,22 @@ public sealed class ChunkReprocessService : IChunkReprocessService {
                 artifact.BlobContainer,
                 artifact.BlobPath,
                 ct).ConfigureAwait(false);
-            indexingResult = await _indexingService.IndexFromJsonlAsync(stream, job.InputRef, ct).ConfigureAwait(false);
+
+            // T13: resolve the vector<->graph anchor metadata before indexing. The artifact row is
+            // re-fetched by uploadId+type (not newly created), so its IndexedArtifactId and the jobId
+            // parameter are the same anchors initial ingestion stamped -- passing them here is
+            // idempotent re-stamping, never a clobber. sourceContentHash is resolved from the owning
+            // ManualDocument when present; null when absent (never string.Empty -- an empty string
+            // would serialize as a real key and Azure AI Search mergeOrUpload would treat it as
+            // "clear this field", silently wiping a real hash already indexed; see plan §7).
+            var sourceContentHash = await SourceContentHashResolver.ResolveAsync(_manualDocumentRepository, job, ct).ConfigureAwait(false);
+            indexingResult = await _indexingService.IndexFromJsonlAsync(
+                stream,
+                job.InputRef,
+                artifact.IndexedArtifactId,
+                jobId,
+                sourceContentHash,
+                ct).ConfigureAwait(false);
         }
         catch (Exception ex) {
             _logger.LogError(

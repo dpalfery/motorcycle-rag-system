@@ -1,18 +1,22 @@
 {
   "mcpServers": {
     "codegraph": {
+      "type": "stdio",
       "command": "codegraph",
       "args": [
         "serve",
         "--mcp",
         "--path",
-        "${workspaceFolder}"
+        "/Users/dave/git/motorcycle-rag-system"
       ]
     },
     "kyber-weave": {
       "type": "stdio",
       "command": "kyber-weave-mcp",
-      "args": ["--repo-root", "."]
+      "args": [
+        "--repo-root",
+        "."
+      ]
     },
     "context7": {
       "url": "https://mcp.context7.com/mcp"

@@ -32,6 +32,9 @@ public sealed class InMemorySearchShimChunkIndexingService : IChunkIndexingServi
     public async Task<ChunkIndexingResult> IndexFromJsonlAsync(
         Stream jsonlStream,
         string uploadId,
+        Guid indexedArtifactId,
+        Guid ingestionJobId,
+        string? sourceContentHash,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(jsonlStream);
@@ -52,13 +55,16 @@ public sealed class InMemorySearchShimChunkIndexingService : IChunkIndexingServi
         var jsonl = await reader.ReadToEndAsync(ct).ConfigureAwait(false);
         var parsed = ParseOutcomes(jsonl);
 
+        // D3: Stamp every parsed record with the resolved anchor metadata before posting.
+        var stampedJsonl = StampAnchorMetadata(jsonl, indexedArtifactId, ingestionJobId, sourceContentHash);
+
         var baseEndpoint = endpoint.AbsoluteUri.EndsWith('/')
             ? endpoint
             : new Uri(endpoint.AbsoluteUri + "/");
         var uriBuilder = new UriBuilder(new Uri(baseEndpoint, "index-jsonl"));
         uriBuilder.Query = $"uploadId={Uri.EscapeDataString(uploadId)}";
 
-        using var content = new StringContent(jsonl, Encoding.UTF8);
+        using var content = new StringContent(stampedJsonl, Encoding.UTF8);
         content.Headers.ContentType = new MediaTypeHeaderValue("application/x-ndjson");
 
         using var response = await _httpClient.PostAsync(uriBuilder.Uri, content, ct).ConfigureAwait(false);
@@ -83,6 +89,60 @@ public sealed class InMemorySearchShimChunkIndexingService : IChunkIndexingServi
             LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
 
         return new ChunkIndexingResult(parsed.Count, parsed.Count > 0 ? 1 : 0, parsed);
+    }
+
+    private static string StampAnchorMetadata(
+        string jsonl,
+        Guid indexedArtifactId,
+        Guid ingestionJobId,
+        string? sourceContentHash)
+    {
+        var stampedLines = new List<string>();
+        foreach (var line in jsonl.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            // Deserialize the line into a mutable dictionary
+            var dict = JsonSerializer.Deserialize<Dictionary<string, object?>>(line)
+                       ?? new Dictionary<string, object?>();
+
+            // Stamp the anchor fields using the same semantics as ChunkIndexingService:
+            // Guid.Empty -> omit the key (not null), empty string -> omit the key (not null)
+            // This prevents the legacy 3-parameter overload from wiping anchors on merge.
+            if (indexedArtifactId != Guid.Empty)
+            {
+                dict["indexedArtifactId"] = indexedArtifactId.ToString();
+            }
+            else
+            {
+                // Remove the key entirely if unset, rather than setting it to null
+                dict.Remove("indexedArtifactId");
+            }
+
+            if (ingestionJobId != Guid.Empty)
+            {
+                dict["ingestionJobId"] = ingestionJobId.ToString();
+            }
+            else
+            {
+                // Remove the key entirely if unset, rather than setting it to null
+                dict.Remove("ingestionJobId");
+            }
+
+            if (!string.IsNullOrEmpty(sourceContentHash))
+            {
+                dict["sourceContentHash"] = sourceContentHash;
+            }
+            else
+            {
+                // Remove the key entirely if unset, rather than setting it to null
+                dict.Remove("sourceContentHash");
+            }
+
+            // Re-serialize and add to the list
+            var stampedLine = JsonSerializer.Serialize(dict);
+            stampedLines.Add(stampedLine);
+        }
+
+        return string.Join("\n", stampedLines);
     }
 
     private static IReadOnlyList<ChunkIndexOutcome> ParseOutcomes(string jsonl)

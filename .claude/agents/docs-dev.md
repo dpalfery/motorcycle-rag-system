@@ -1,7 +1,7 @@
 ---
 name: docs-dev
 description: "Technical documentation: READMEs, API docs, ADRs, runbooks, and inline code docs in Markdown/Mermaid. Use when the deliverable is documentation. Does not write implementation code, tests, CI/CD config, or spec-flow documents."
-model: sonnet
+model: haiku
 tools: Read, Write, Edit, Glob, Grep
 author: David R Palfery
 version: 1.0.0

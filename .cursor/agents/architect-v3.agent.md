@@ -1,6 +1,7 @@
 ---
 name: architect-v3
 description: "Test-first planning agent: produces an implementation plan before coding, decomposed so the failing tests that define each task's done-ness are specified first (Test contract). Resolves design decisions, negotiates scope, and emits a plan the conductor-v3 skill executes as a Red→Green pipeline. Plans only — does not write source code, run mutating commands, or author formal spec documents."
+model: gpt-5.6-sol[context=272k,reasoning=high,fast=false]
 tools: [read/problems, read/readFile, search/fileSearch, search/listDirectory, search/textSearch, todo]
 author: David R Palfery
 version: 1.0.0

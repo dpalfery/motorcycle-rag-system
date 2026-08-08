@@ -34,7 +34,7 @@ The documentation standard defines both lifecycles in detail, and the rules for 
 
 ## Kyber-Weave
 
-**Kyber-Weave** is the name of this repository's agent-and-documentation governance framework. Product source and releases live in the external repository [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave); MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in the root `kyber-weave.yml`. Its premise is that every artifact shaping agent behavior is a supply-chain artifact — parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The commands named throughout this file (`kyber-weave skill|agent|docs …`) and the `KW-*` rule codes are its surface. See the [Kyber-Weave reference](6-Docs/reference/kyber-weave.md).
+**Kyber-Weave** is the name of this repository's agent-and-documentation governance framework. Product source and releases live in the external repository [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave); MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in `.kyber-weave/kyber-weave.yml`. Its premise is that every artifact shaping agent behavior is a supply-chain artifact — parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The commands named throughout this file (`kyber-weave skill|agent|docs …`) and the `KW-*` rule codes are its surface. See the [Kyber-Weave reference](6-Docs/reference/kyber-weave.md).
 
 ## Agent configuration synchronization
 
@@ -71,7 +71,7 @@ Agents and skills should look up the following properties dynamically to find th
 - **Documentation Index:** `6-Docs/README.md`
 - **Documentation Standard:** `6-Docs/documentation-standard.md`
 - **Documentation Ontology:** `6-Docs/documentation-ontology.md`
-- **Governance Framework (Kyber-Weave):** external product [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave) — install CLI/MCP via GitHub Releases, npm (`@dpalfery/kyber-weave`), or Homebrew; host overrides: root `kyber-weave.yml`; reference: `6-Docs/reference/kyber-weave.md`
+- **Governance Framework (Kyber-Weave):** external product [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave) — install CLI/MCP via GitHub Releases, npm (`@dpalfery/kyber-weave`), or Homebrew; host overrides: `.kyber-weave/kyber-weave.yml`; reference: `6-Docs/reference/kyber-weave.md`
 - **Skill Validation Script:** `7-Deployment/scripts/kyber-weave-validate.sh`
 - **Agent Scratchpad:** `.agent-scratch-pad/`
 - **Clean Architecture Rules:** `6-Docs/rules/architecture-general.md`

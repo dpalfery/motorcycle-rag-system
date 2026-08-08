@@ -12,6 +12,6 @@ Kyber-Weave no longer lives in this repository.
 | npm | `npm i -g @dpalfery/kyber-weave@0.1.1` |
 | Homebrew | `brew install dpalfery/kyber-weave/kyber-weave` |
 
-After install, `kyber-weave` and `kyber-weave-mcp` are on `PATH`. Host overrides for this repository are in the root [`kyber-weave.yml`](../../../kyber-weave.yml). See [Kyber-Weave reference](../../../6-Docs/reference/kyber-weave.md).
+After install, `kyber-weave` and `kyber-weave-mcp` are on `PATH`. Host overrides for this repository are in [`.kyber-weave/kyber-weave.yml`](../../../.kyber-weave/kyber-weave.yml). See [Kyber-Weave reference](../../../6-Docs/reference/kyber-weave.md).
 
 nuget.org is not used.

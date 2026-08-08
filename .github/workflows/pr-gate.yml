@@ -60,7 +60,7 @@ jobs:
               - '**/AGENTS.md'
               - '7-Deployment/scripts/validate-docs.sh'
               - '.markdownlint-cli2.yaml'
-              - 'kyber-weave.yml'
+              - '.kyber-weave/kyber-weave.yml'
             infra:
               - '.github/**'
               - '7-Deployment/**'

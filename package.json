@@ -1,6 +1,12 @@
 {
   "dependencies": {
     "@azure/mcp-darwin-arm64": "^2.0.5",
-    "@colbymchenry/codegraph": "^1.5.0"
+    "@colbymchenry/codegraph": "^1.5.0",
+    "@senad-d/observme": "^0.1.9",
+    "pi-glm-usage": "^0.1.2",
+    "pi-web-access": "^0.19.0"
+  },
+  "overrides": {
+    "@mariozechner/pi-coding-agent": "npm:@earendil-works/pi-coding-agent@^0.84.1"
   }
 }

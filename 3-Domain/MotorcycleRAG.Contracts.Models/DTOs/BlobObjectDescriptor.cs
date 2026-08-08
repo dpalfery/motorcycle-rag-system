@@ -9,4 +9,5 @@ public sealed record BlobObjectDescriptor
     public string? ContentType { get; init; }
     public long SizeBytes { get; init; }
     public DateTimeOffset? LastModifiedUtc { get; init; }
+    public IReadOnlyDictionary<string, string> Metadata { get; init; } = new Dictionary<string, string>();
 }

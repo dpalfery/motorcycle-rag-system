@@ -87,6 +87,7 @@ public sealed class ProcessorArtifactsController : ControllerBase
                 ProcessorArtifactOperationStatus.Success => Accepted(result.Response),
                 ProcessorArtifactOperationStatus.InvalidUploadId => BadRequest(Problem(StatusCodes.Status400BadRequest, "Invalid uploadId", "uploadId must be a valid GUID format.")),
                 ProcessorArtifactOperationStatus.InvalidArtifactType => BadRequest(Problem(StatusCodes.Status400BadRequest, "Invalid artifactType", "artifactType must be 'search-chunks' or 'graph-entities'.")),
+                ProcessorArtifactOperationStatus.IndexingSkipped => Accepted(result.Response),
                 _ => StatusCode(StatusCodes.Status500InternalServerError, Problem(StatusCodes.Status500InternalServerError, "Upload failed", "The processor artifact could not be stored."))
             };
         }

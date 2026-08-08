@@ -32,6 +32,7 @@ internal static class DataPipelineConfiguration {
 
         // Register ingestion job service for Fabric pipeline integration
         services.AddScoped<IIngestionJobService, MotorcycleRAG.Application.Services.Ingestion.IngestionJobService>();
+        services.AddScoped<ISearchChunkIndexingCoordinator, SearchChunkIndexingCoordinator>();
         services.AddScoped<IProcessorArtifactService, ProcessorArtifactService>();
 
         // Singleton bounded channel shared between the scoped IngestionJobService (producer) and
@@ -48,6 +49,15 @@ internal static class DataPipelineConfiguration {
         // Drains GraphIngestionChannel and runs graph ingestion outside the HTTP request
         // lifecycle. Resolves scoped IIngestionJobService per job via IServiceScopeFactory.
         services.AddHostedService<GraphIngestionBackgroundService>();
+
+        // Register orphaned artifact sweep service (scoped) for reconciliation cycles.
+        services.AddScoped<IOrphanedArtifactSweepService, OrphanedArtifactSweepService>();
+
+        // Register the orphaned artifact sweep background service (hosted). It periodically
+        // sweeps for orphaned search-chunks artifacts and reconciles their states outside
+        // the originating HTTP request lifecycle. Resolves scoped dependencies
+        // (IOrphanedArtifactSweepService) through IServiceScopeFactory.
+        services.AddHostedService<OrphanedArtifactSweepBackgroundService>();
 
         services.AddSingleton<IIngestionSourceAccessTokenService, MotorcycleRAG.Application.Services.Ingestion.IngestionSourceAccessTokenService>();
         services.AddMemoryCache();

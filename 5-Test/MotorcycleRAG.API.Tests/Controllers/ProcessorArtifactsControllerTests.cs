@@ -39,6 +39,34 @@ public sealed class ProcessorArtifactsControllerTests
         submitted.ContentType.Should().Be("application/x-ndjson");
     }
 
+    // T1 (plan: 2026-08-03-processor-artifact-skip-observability, §4 T4 test-contract Row 4): RED test for the
+    // not-yet-implemented ProcessorArtifactOperationStatus.IndexingSkipped => Accepted(...) controller arm.
+    // Expected to fail to compile until T3 adds the enum member and T4 adds the controller switch arm; do not
+    // implement production code changes here.
+    [Fact]
+    public async Task UploadArtifactAsync_MapsIndexingSkippedTo202AcceptedCarryingResponseBody_NotServerError()
+    {
+        var response = new ProcessorArtifactUploadResponse
+        {
+            UploadId = "00000000-0000-0000-0000-000000000001",
+            ArtifactType = "search-chunks",
+            BlobPath = "search-chunks/00000000-0000-0000-0000-000000000001/chunks.jsonl",
+            Status = "stored-not-indexed"
+        };
+        var service = new Mock<IProcessorArtifactService>();
+        service.Setup(x => x.UploadArtifactAsync(It.IsAny<ProcessorArtifactUploadRequest>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProcessorArtifactUploadResult(response, ProcessorArtifactOperationStatus.IndexingSkipped));
+
+        var result = await Create(service.Object).UploadArtifactAsync(
+            CreateFile("{\"id\":\"chunk-1\"}"), "00000000-0000-0000-0000-000000000001", "search-chunks", CancellationToken.None);
+
+        // BeOfType (exact type), not BeAssignableTo: the discard "_ =>" arm returns a plain ObjectResult via
+        // StatusCode(500, ...), so an exact AcceptedResult match rules out IndexingSkipped falling through to it.
+        var accepted = result.Should().BeOfType<AcceptedResult>().Which;
+        accepted.StatusCode.Should().Be(StatusCodes.Status202Accepted);
+        accepted.Value.Should().BeSameAs(response);
+    }
+
     [Theory]
     [InlineData(ProcessorArtifactOperationStatus.InvalidUploadId)]
     [InlineData(ProcessorArtifactOperationStatus.InvalidArtifactType)]

@@ -60,4 +60,12 @@ public interface IBlobStorageService
         string blobName,
         Dictionary<string, string> metadata,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the metadata for a blob. Returns an empty dictionary for a missing blob rather than throwing.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, string>> GetMetadataAsync(
+        string containerName,
+        string blobName,
+        CancellationToken cancellationToken = default);
 }

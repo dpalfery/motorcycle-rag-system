@@ -8,8 +8,10 @@ using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Application.Features.Ingestion.Validators;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
+using MotorcycleRAG.Domain.Entities;
 
 namespace MotorcycleRAG.API.Controllers;
 
@@ -34,6 +36,9 @@ public sealed class IngestionJobsController : ControllerBase {
     private readonly BlobStorageOptions _blobStorageOptions;
     private readonly IngestionOptions _ingestionOptions;
     private readonly IChunkReprocessService _reprocessService;
+    private readonly IOrphanedArtifactSweepService _orphanedArtifactSweepService;
+    private readonly ISearchChunkIndexingCoordinator _searchChunkIndexingCoordinator;
+    private readonly IIngestionJobRepository _ingestionJobRepository;
     private readonly ILogger<IngestionJobsController> _logger;
 
     public IngestionJobsController(
@@ -43,6 +48,9 @@ public sealed class IngestionJobsController : ControllerBase {
         IOptions<BlobStorageOptions> blobStorageOptions,
         IOptions<IngestionOptions> ingestionOptions,
         IChunkReprocessService reprocessService,
+        IOrphanedArtifactSweepService orphanedArtifactSweepService,
+        ISearchChunkIndexingCoordinator searchChunkIndexingCoordinator,
+        IIngestionJobRepository ingestionJobRepository,
         ILogger<IngestionJobsController> logger) {
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
@@ -50,6 +58,9 @@ public sealed class IngestionJobsController : ControllerBase {
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
         _ingestionOptions = ingestionOptions?.Value ?? throw new ArgumentNullException(nameof(ingestionOptions));
         _reprocessService = reprocessService ?? throw new ArgumentNullException(nameof(reprocessService));
+        _orphanedArtifactSweepService = orphanedArtifactSweepService ?? throw new ArgumentNullException(nameof(orphanedArtifactSweepService));
+        _searchChunkIndexingCoordinator = searchChunkIndexingCoordinator ?? throw new ArgumentNullException(nameof(searchChunkIndexingCoordinator));
+        _ingestionJobRepository = ingestionJobRepository ?? throw new ArgumentNullException(nameof(ingestionJobRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -796,6 +807,133 @@ public sealed class IngestionJobsController : ControllerBase {
             return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
                 Title = "Reprocess operation failed",
                 Detail = "The reprocess operation could not be completed.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
+    }
+
+    /// <summary>
+    /// Lists all orphaned search-chunks artifacts in both Orphaned and OrphanedTerminal states.
+    /// Route: GET /api/ingestion/artifacts/orphaned
+    /// </summary>
+    [HttpGet("artifacts/orphaned")]
+    [IgnoreAntiforgeryToken]
+    [ProducesResponseType(typeof(IReadOnlyList<OrphanedArtifactDto>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<OrphanedArtifactDto>>> GetOrphanedArtifactsAsync(
+        CancellationToken ct) {
+        var orphans = await _orphanedArtifactSweepService.ListOrphansAsync(ct).ConfigureAwait(false);
+        return Ok(orphans);
+    }
+
+    /// <summary>
+    /// Triggers an orphan sweep cycle synchronously and returns the result.
+    /// Route: POST /api/ingestion/artifacts/orphaned/sweep
+    /// </summary>
+    [HttpPost("artifacts/orphaned/sweep")]
+    [IgnoreAntiforgeryToken]
+    [ProducesResponseType(typeof(OrphanSweepResultDto), StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> TriggerOrphanSweepAsync(
+        CancellationToken ct) {
+        _logger.LogInformation("Triggering orphan sweep.");
+
+        var result = await _orphanedArtifactSweepService.RunSweepAsync(ct).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Orphan sweep complete: {OrphansFound} found, {Healed} healed, {AttemptsIncremented} attempts incremented, {TerminalTransitions} terminal transitions, {Errored} errored.",
+            result.OrphansFound,
+            result.Healed,
+            result.AttemptsIncremented,
+            result.TerminalTransitions,
+            result.Errored);
+
+        return Accepted(result);
+    }
+
+    /// <summary>
+    /// Adopts an orphaned artifact by re-associating it with a valid ingestion job and re-indexing it.
+    /// Route: POST /api/ingestion/artifacts/orphaned/{uploadId}/adopt
+    /// </summary>
+    /// <param name="uploadId">The upload ID of the orphaned artifact.</param>
+    /// <param name="request">Request body containing the target ingestion job ID.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>202 Accepted with the indexing outcome or appropriate error.</returns>
+    [HttpPost("artifacts/orphaned/{uploadId}/adopt")]
+    [IgnoreAntiforgeryToken]
+    [ProducesResponseType(typeof(SearchChunkIndexingOutcomeDto), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AdoptOrphanedArtifactAsync(
+        string uploadId,
+        [FromBody] OrphanAdoptRequest? request,
+        CancellationToken ct) {
+        // (a) D1: Guard against null request or Guid.Empty — never touch coordinator or repository
+        if (request is null || request.IngestionJobId == Guid.Empty) {
+            return BadRequest(new ProblemDetails {
+                Title = "Invalid request",
+                Detail = "The request body must contain a valid non-empty IngestionJobId.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        // (b) Check job existence; this is always required before indexing, before orphan check
+        var job = await _ingestionJobRepository.GetByIdAsync(request.IngestionJobId, ct).ConfigureAwait(false);
+        if (job is null) {
+            return BadRequest(new ProblemDetails {
+                Title = "Ingestion job not found",
+                Detail = $"No ingestion job with ID '{request.IngestionJobId}' was found.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        // (c) List orphans and find the matching one by uploadId
+        var orphans = await _orphanedArtifactSweepService.ListOrphansAsync(ct).ConfigureAwait(false);
+        var orphan = orphans.FirstOrDefault(o => o.UploadId == uploadId);
+        if (orphan is null) {
+            return NotFound(new ProblemDetails {
+                Title = "Orphaned artifact not found",
+                Detail = $"No orphaned artifact with upload ID '{uploadId}' was found.",
+                Status = StatusCodes.Status404NotFound
+            });
+        }
+
+        _logger.LogInformation(
+            "Adopting orphaned artifact. UploadId={UploadId}, IngestionJobId={JobId}.",
+            LogSanitizer.Sanitize(uploadId),  // codeql[cs/log-forging]
+            request.IngestionJobId);
+
+        try {
+            // Download the blob
+            await using var blobStream = await _blobStorageService.DownloadAsync(
+                orphan.Container,
+                orphan.BlobPath,
+                ct).ConfigureAwait(false);
+
+            // Generate a fresh indexed artifact ID
+            var indexedArtifactId = Guid.NewGuid();
+
+            // Invoke the coordinator to re-index the artifact with the resolved job
+            var outcome = await _searchChunkIndexingCoordinator.IndexAsync(
+                blobStream,
+                uploadId,
+                orphan.Container,
+                orphan.BlobPath,
+                indexedArtifactId,
+                job,
+                ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Adopted orphaned artifact. UploadId={UploadId}, IndexedArtifactId={IndexedArtifactId}, Succeeded={Succeeded}.",
+                LogSanitizer.Sanitize(uploadId),  // codeql[cs/log-forging]
+                indexedArtifactId,
+                outcome.Succeeded);
+
+            return Accepted(outcome);
+        }
+        catch (Exception ex) {
+            _logger.LogError(ex, "Failed to adopt orphaned artifact. UploadId={UploadId}, IngestionJobId={JobId}.", uploadId, request.IngestionJobId);
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails {
+                Title = "Adoption failed",
+                Detail = "The orphaned artifact could not be adopted.",
                 Status = StatusCodes.Status500InternalServerError
             });
         }

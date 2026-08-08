@@ -1,0 +1,144 @@
+# Oz cloud-agent development environment for MotorcycleRAG.
+#
+# Provides the toolchains needed to restore/build/test the parts of this repo
+# that run headlessly on Linux:
+#   - .NET 10 SDK: MotorcycleRAG.sln (API, WebUI.BFF, Application, Domain,
+#     Contracts, Contracts.Models, Persistence, Core, and their test projects)
+#   - Node.js 22 + npm: 1-Presentation/MotorcycleRag.WebUI,
+#     1-Presentation/MotorcycleRAG.AdminDesktop (web layer only)
+#   - Python 3 + Poetry: 2-Application/local-processing-service
+#   - git + GitHub CLI (gh): version control and PR workflows
+#
+# MCP servers from .mcp.json (root AGENTS.md Kyber-Weave/CodeGraph rules):
+#   - codegraph: local stdio server, command `codegraph`. Installed globally
+#     via npm, pinned to the same version vendored for CI at
+#     7-Deployment/tools/codegraph/package.json (`@colbymchenry/codegraph`).
+#   - kyber-weave: local stdio server, command `kyber-weave-mcp`. Installed
+#     from a pinned GitHub Release, the same way as the repo's
+#     .github/actions/install-kyber-weave composite action (binary + SHA256
+#     verification), also installing the `kyber-weave` CLI itself.
+#   - context7, microsoft-learn, github: remote HTTP/SSE servers - no local
+#     binary to install; they only need outbound network access and, for
+#     `github`, credentials supplied at runtime (`gh` is installed below).
+#   - playwright: stdio server launched on demand via `npx -y
+#     @playwright/mcp@<version>`, which only needs Node/npx (installed
+#     below). Per 6-Docs/DevOps/mcp-and-extensions.md, `@latest` is not
+#     reproducible, so this image does not silently pre-fetch or pin a
+#     version at build time - resolve the version with the user first.
+#   - azure-mcp: `"disabled": true` in .mcp.json and backed by a VS Code
+#     extension binary path, not a portable package - intentionally skipped,
+#     consistent with this image excluding Azure CLI/write access below.
+#
+# Deliberately NOT included, per the repository AGENTS.md guardrails and
+# because they do not run headlessly in a Linux container:
+#   - Docker CLI / Docker-in-Docker - agents must not run `docker build`,
+#     `docker push`, or ACR builds (root AGENTS.md, setup-dev-environment
+#     Guardrails).
+#   - Azure CLI - Azure writes are forbidden for agents; add it out-of-band
+#     only if an image consumer needs authenticated read-only `az` access.
+#   - Rust/Cargo/Tauri and .NET MAUI mobile workloads (Android/iOS/Mac
+#     Catalyst) - AdminDesktop's Tauri shell and MobileApp's mobile targets
+#     require platform SDKs (Xcode, Android SDK/NDK) that are impractical or
+#     impossible in a headless Linux container.
+#   - Ollama, SQL Server tools, VS Code - developer-machine-only tooling from
+#     the Developer Setup Standard that has no role in a cloud agent sandbox.
+#
+# Build (do not run this yourself as an agent - see AGENTS.md Docker guardrail):
+#   docker build -f 7-Deployment/Dockerfile.oz-agent \
+#     -t <registry>/motorcyclerag-oz-agent:<tag> .
+#
+# Register with Oz once pushed to a registry Oz can pull from:
+#   oz environment create --name "motorcyclerag-oz-agent" \
+#     --docker-image <registry>/motorcyclerag-oz-agent:<tag> \
+#     --repo <owner>/motorcycle-rag-system
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+# Keep these in sync with their CI pins:
+#   - KYBER_WEAVE_VERSION <-> KYBER_WEAVE_VERSION in .github/workflows/pr-gate.yml
+#   - CODEGRAPH_VERSION   <-> @colbymchenry/codegraph in 7-Deployment/tools/codegraph/package.json
+ARG KYBER_WEAVE_VERSION=0.1.1
+ARG CODEGRAPH_VERSION=1.5.0
+
+ENV DOTNET_NOLOGO=1 \
+    DOTNET_CLI_TELEMETRY_OPTOUT=1 \
+    NUGET_XMLDOC_MODE=skip \
+    PYTHONUNBUFFERED=1 \
+    POETRY_HOME=/opt/poetry \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    PATH="/opt/poetry/bin:${PATH}" \
+    NODE_MAJOR=22
+
+# Pick up Ubuntu security patches ahead of the next base-image rebuild, then
+# layer on git, GitHub CLI, Python 3 (+venv/pip/dev headers for packages like
+# docling/torchvision/tokenizers that build native extensions), and the
+# NodeSource repo for Node 22 (Ubuntu's default nodejs package is older than
+# the >=22.22.0 this repo's package.json files require).
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        gnupg \
+        git \
+        build-essential \
+        python3 \
+        python3-venv \
+        python3-pip \
+        python3-dev \
+    && install -d -m 0755 /etc/apt/keyrings \
+    && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+        gh \
+        nodejs \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry into an isolated location (POETRY_HOME) so it never collides
+# with a project-local virtualenv.
+RUN curl -sSL https://install.python-poetry.org | python3 - \
+    && poetry --version
+
+# CodeGraph MCP/CLI: global npm install pinned to the version vendored for CI
+# (7-Deployment/tools/codegraph/package.json), so `codegraph` is on PATH
+# without depending on a repo checkout at image-build time.
+RUN npm install -g "@colbymchenry/codegraph@${CODEGRAPH_VERSION}" \
+    && codegraph --version
+
+# Kyber-Weave CLI + MCP server: download the pinned GitHub Release binaries
+# for the image's architecture and verify them against the release's
+# SHA256SUMS.txt, mirroring .github/actions/install-kyber-weave.
+RUN set -eux; \
+    case "$(uname -m)" in \
+        x86_64) KW_RID=linux-x64 ;; \
+        aarch64) KW_RID=linux-arm64 ;; \
+        *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;; \
+    esac; \
+    KW_TAG="v${KYBER_WEAVE_VERSION}"; \
+    KW_BASE="https://github.com/dpalfery/kyber-weave/releases/download/${KW_TAG}"; \
+    WORK="$(mktemp -d)"; \
+    cd "${WORK}"; \
+    curl -fsSL -o SHA256SUMS.txt "${KW_BASE}/SHA256SUMS.txt"; \
+    curl -fsSL -o "kyber-weave-${KW_RID}.tar.gz" "${KW_BASE}/kyber-weave-${KW_RID}.tar.gz"; \
+    curl -fsSL -o "kyber-weave-mcp-${KW_RID}.tar.gz" "${KW_BASE}/kyber-weave-mcp-${KW_RID}.tar.gz"; \
+    for archive in "kyber-weave-${KW_RID}.tar.gz" "kyber-weave-mcp-${KW_RID}.tar.gz"; do \
+        expected=$(awk -v f="${archive}" '$2==f{print tolower($1);exit} $2=="*"f{print tolower($1);exit}' SHA256SUMS.txt); \
+        [ -n "${expected}" ] || { echo "No checksum entry for ${archive}" >&2; exit 1; }; \
+        actual=$(sha256sum "${archive}" | awk '{print tolower($1)}'); \
+        [ "${actual}" = "${expected}" ] || { echo "Checksum mismatch for ${archive}" >&2; exit 1; }; \
+    done; \
+    tar -xzf "kyber-weave-${KW_RID}.tar.gz"; \
+    tar -xzf "kyber-weave-mcp-${KW_RID}.tar.gz"; \
+    install -m 0755 kyber-weave /usr/local/bin/kyber-weave; \
+    install -m 0755 kyber-weave-mcp /usr/local/bin/kyber-weave-mcp; \
+    cd /; \
+    rm -rf "${WORK}"; \
+    kyber-weave --help >/dev/null
+
+WORKDIR /workspace

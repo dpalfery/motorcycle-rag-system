@@ -14,7 +14,7 @@
 - Before every `az` read, verify the active subscription against the allowlist in [Azure agent access](6-Docs/AzureEnvironment/agent-access.md). Azure writes, local `pulumi up`, direct Docker builds, and ACR pushes are forbidden.
 - Preserve Clean Architecture: inner layers never depend on outer layers; Contracts contains interfaces only; Contracts.Models contains shared DTOs only; business invariants belong in Domain; Application services belong in `Services`.
 - Do not create new files or folders at repository root, with the single exception of the **Agent Scratchpad** declared in the Config Registry below. Scripts, tools, and deployment assets belong under `7-Deployment/`; documentation belongs under `6-Docs/`; generated notes belong in the scratchpad. `6-Docs/` holds canonical documentation only — never scratch output, vendored packages, or git-ignored working files.
-- **RTK for shell commands:** Always prefix shell commands with `rtk` to minimize token consumption. Use `rtk <cmd>` instead of raw commands. See [RTK rules](../6-Docs/rules/rtk-rules.md) for details and meta commands.
+- **RTK for shell commands:** Always prefix shell commands with `rtk` to minimize token consumption. Use `rtk <cmd>` instead of raw commands. See [RTK rules](6-Docs/rules/rtk-rules.md) for details and meta commands.
 
 Read the full [working agreement](6-Docs/system/agent-governance.md), [security directives](6-Docs/system/security.md), and [Azure environment rules](6-Docs/AzureEnvironment/agent-access.md) when the task touches their subject.
 

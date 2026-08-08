@@ -104,14 +104,20 @@ public class AzureBlobStorageService : IBlobStorageService
 
         try
         {
-            await foreach (var blob in containerClient.GetBlobsAsync(cancellationToken: cancellationToken))
+            var options = new GetBlobsOptions { Traits = BlobTraits.Metadata };
+            await foreach (var blob in containerClient.GetBlobsAsync(options, cancellationToken: cancellationToken))
             {
+                var metadata = blob.Metadata == null
+                    ? new Dictionary<string, string>()
+                    : new Dictionary<string, string>(blob.Metadata);
+
                 blobs.Add(new BlobObjectDescriptor
                 {
                     Name = blob.Name,
                     ContentType = blob.Properties.ContentType,
                     SizeBytes = blob.Properties.ContentLength ?? 0L,
-                    LastModifiedUtc = blob.Properties.LastModified
+                    LastModifiedUtc = blob.Properties.LastModified,
+                    Metadata = metadata
                 });
             }
         }
@@ -196,6 +202,35 @@ public class AzureBlobStorageService : IBlobStorageService
                 "Failed to set metadata on blob {BlobName} in container {Container}. This is best-effort only.",
                 LogSanitizer.Sanitize(blobName),  // codeql[cs/log-forging]
                 containerName);
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<IReadOnlyDictionary<string, string>> GetMetadataAsync(
+        string containerName,
+        string blobName,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(containerName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(blobName);
+
+        try
+        {
+            var containerClient = _blobServiceClient.GetBlobContainerClient(containerName);
+            var blobClient = containerClient.GetBlobClient(blobName);
+            var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+
+            return properties.Value.Metadata == null
+                ? new Dictionary<string, string>()
+                : new Dictionary<string, string>(properties.Value.Metadata);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            _logger.LogInformation(
+                "Blob {BlobName} was not found in container {Container} when retrieving metadata.",
+                LogSanitizer.Sanitize(blobName),  // codeql[cs/log-forging]
+                containerName);
+            return new Dictionary<string, string>();
         }
     }
 }

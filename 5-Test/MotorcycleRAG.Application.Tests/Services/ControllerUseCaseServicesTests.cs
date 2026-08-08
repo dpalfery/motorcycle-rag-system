@@ -85,13 +85,10 @@ public sealed class ControllerUseCaseServicesTests
         var service = new ProcessorArtifactService(
             blobStorage.Object,
             Options.Create(new BlobStorageOptions { RawUploadsContainer = "raw-uploads" }),
-            Mock.Of<IChunkIndexingService>(),
+            Mock.Of<ISearchChunkIndexingCoordinator>(),
             Mock.Of<IIngestionJobRepository>(),
-            Mock.Of<IIndexedArtifactRepository>(),
-            Mock.Of<IIndexedChunkRepository>(),
             tokenService.Object,
             Mock.Of<IIngestionJobService>(),
-            Mock.Of<IManualDocumentRepository>(),
             NullLogger<ProcessorArtifactService>.Instance);
 
         var result = await service.DownloadSourceAsync("00000000-0000-0000-0000-000000000001", "manual-pdf", "invalid");

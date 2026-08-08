@@ -354,6 +354,28 @@ public class AzureBlobStorageServiceTests
         await act.Should().ThrowAsync<ArgumentException>().WithParameterName("blobName");
     }
 
+    // ─── GetMetadataAsync argument validation (T9) ────────────────────
+
+    [Fact]
+    public async Task GetMetadataAsync_ShouldThrowArgumentException_WhenContainerNameIsEmpty()
+    {
+        var sut = CreateService();
+
+        var act = () => sut.GetMetadataAsync("", "blob");
+
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("containerName");
+    }
+
+    [Fact]
+    public async Task GetMetadataAsync_ShouldThrowArgumentException_WhenBlobNameIsEmpty()
+    {
+        var sut = CreateService();
+
+        var act = () => sut.GetMetadataAsync("container", "");
+
+        await act.Should().ThrowAsync<ArgumentException>().WithParameterName("blobName");
+    }
+
     // ─── Blob client mocking helpers ──────────────────────────────────
 
     private static (Mock<BlobServiceClient> service, Mock<BlobContainerClient> container, Mock<BlobClient> blob) CreateMockBlobChain(string connectionString = "UseDevelopmentStorage=true")
@@ -465,14 +487,56 @@ public class AzureBlobStorageServiceTests
             => throw new NotImplementedException("AsPages is not exercised by current tests");
     }
 
-    private static BlobItem CreateBlobItemStub(string name, string contentType, long contentLength)
+    private static BlobItem CreateBlobItemStub(
+        string name, string contentType, long contentLength, Dictionary<string, string>? metadata = null)
     {
         var props = BlobsModelFactory.BlobItemProperties(
             accessTierInferred: false,
             contentType: contentType,
             contentLength: contentLength);
-        return BlobsModelFactory.BlobItem(name, deleted: false, properties: props, versionId: null, metadata: null);
+        return BlobsModelFactory.BlobItem(name, deleted: false, properties: props, versionId: null, metadata: metadata);
     }
+
+    /// <summary>
+    /// Builds a <see cref="BlobProperties"/> stub via <see cref="BlobsModelFactory"/> for
+    /// <c>GetPropertiesAsync</c> mocking. All non-metadata fields use harmless defaults;
+    /// <see cref="BlobProperties.Metadata"/> has no public setter, so this factory method is
+    /// the only way to control it in a test.
+    /// </summary>
+    private static BlobProperties CreateBlobPropertiesStub(Dictionary<string, string>? metadata)
+        => BlobsModelFactory.BlobProperties(
+            lastModified: default,
+            leaseDuration: default,
+            leaseState: default,
+            leaseStatus: default,
+            contentLength: 0L,
+            destinationSnapshot: null,
+            eTag: default,
+            contentHash: null,
+            contentEncoding: null,
+            contentDisposition: null,
+            contentLanguage: null,
+            isIncrementalCopy: false,
+            cacheControl: null,
+            copyStatus: default,
+            blobSequenceNumber: 0L,
+            copySource: null,
+            acceptRanges: null,
+            copyProgress: null,
+            blobCommittedBlockCount: 0,
+            copyId: null,
+            isServerEncrypted: false,
+            copyStatusDescription: null,
+            encryptionKeySha256: null,
+            copyCompletedOn: default,
+            accessTier: null,
+            blobType: default,
+            accessTierInferred: false,
+            metadata: metadata,
+            archiveStatus: null,
+            createdOn: default,
+            accessTierChangedOn: default,
+            contentType: null);
 
     [Fact]
     public async Task ListAsync_WithBlobs_ShouldReturnDescriptors()
@@ -495,9 +559,11 @@ public class AzureBlobStorageServiceTests
         result[0].Name.Should().Be("blob1.pdf");
         result[0].ContentType.Should().Be("application/pdf");
         result[0].SizeBytes.Should().Be(1024L);
+        result[0].Metadata.Should().NotBeNull().And.BeEmpty();
         result[1].Name.Should().Be("blob2.txt");
         result[1].ContentType.Should().Be("text/plain");
         result[1].SizeBytes.Should().Be(512L);
+        result[1].Metadata.Should().NotBeNull().And.BeEmpty();
     }
 
     [Fact]
@@ -572,6 +638,65 @@ public class AzureBlobStorageServiceTests
         container.Verify(
             c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), cts.Token),
             Times.Once);
+    }
+
+    // ─── ListAsync metadata projection (T9) ───────────────────────────
+
+    [Fact]
+    public async Task ListAsync_ShouldRequestMetadataTrait_WhenListingBlobs()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        var pageable = new FakeBlobItemPageable(Array.Empty<BlobItem>());
+        container.Setup(c => c.GetBlobsAsync(
+                It.Is<GetBlobsOptions>(o => o.Traits.HasFlag(BlobTraits.Metadata)),
+                It.IsAny<CancellationToken>()))
+            .Returns(pageable);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        await sut.ListAsync("test-container");
+
+        container.Verify(
+            c => c.GetBlobsAsync(
+                It.Is<GetBlobsOptions>(o => o.Traits.HasFlag(BlobTraits.Metadata)),
+                It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task ListAsync_WithBlobMetadata_ShouldPopulateDescriptorMetadata()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        var metadata = new Dictionary<string, string> { ["state"] = "pending", ["source"] = "upload" };
+        var blobItems = new[] { CreateBlobItemStub("blob1.pdf", "application/pdf", 1024L, metadata) };
+        var pageable = new FakeBlobItemPageable(blobItems);
+        container.Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
+            .Returns(pageable);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.ListAsync("test-container");
+
+        result.Should().HaveCount(1);
+        result[0].Metadata.Should().BeEquivalentTo(metadata);
+    }
+
+    [Fact]
+    public async Task ListAsync_WithBlobHavingNoMetadata_ShouldReturnEmptyMetadataDictionary_NotNull()
+    {
+        var (service, container, _) = CreateMockBlobChain();
+        var blobItems = new[] { CreateBlobItemStub("blob1.pdf", "application/pdf", 1024L, metadata: null) };
+        var pageable = new FakeBlobItemPageable(blobItems);
+        container.Setup(c => c.GetBlobsAsync(It.IsAny<GetBlobsOptions>(), It.IsAny<CancellationToken>()))
+            .Returns(pageable);
+
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.ListAsync("test-container");
+
+        result.Should().HaveCount(1);
+        result[0].Metadata.Should().NotBeNull();
+        result[0].Metadata.Should().BeEmpty();
     }
 
     // ─── UploadAsync ──────────────────────────────────────────────────
@@ -933,5 +1058,73 @@ public class AzureBlobStorageServiceTests
         blob.Verify(
             b => b.SetMetadataAsync(metadata, It.IsAny<BlobRequestConditions>(), cts.Token),
             Times.Once);
+    }
+
+    // ─── GetMetadataAsync (T9) ─────────────────────────────────────────
+
+    [Fact]
+    public async Task GetMetadataAsync_WhenBlobExists_ShouldReturnMetadata()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        var metadata = new Dictionary<string, string> { ["state"] = "processed" };
+        blob.Setup(b => b.GetPropertiesAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Response.FromValue(CreateBlobPropertiesStub(metadata), Mock.Of<Response>()));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.GetMetadataAsync("test-container", "test-blob");
+
+        result.Should().BeEquivalentTo(metadata);
+    }
+
+    /// <summary>
+    /// Per plan §4 T9: "GetMetadataAsync on a non-existent blob → returns an empty map
+    /// (not an exception)." Note this differs from <c>DownloadAsync</c>, which propagates
+    /// a 404 <see cref="RequestFailedException"/> for a missing blob
+    /// (see <c>DownloadAsync_WhenSdkFails_PropagatesRequestFailedException</c> above) — flagged
+    /// per the task instructions as a discrepancy between "not found" handling within this
+    /// class, rather than silently assuming one convention.
+    /// </summary>
+    [Fact]
+    public async Task GetMetadataAsync_WhenBlobDoesNotExist_ShouldReturnEmptyMetadata()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        blob.Setup(b => b.GetPropertiesAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(404, "BlobNotFound"));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var result = await sut.GetMetadataAsync("test-container", "missing-blob");
+
+        result.Should().NotBeNull();
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetMetadataAsync_WithCancellationToken_PassesTokenToSdk()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        using var cts = new CancellationTokenSource();
+        blob.Setup(b => b.GetPropertiesAsync(It.IsAny<BlobRequestConditions>(), cts.Token))
+            .ReturnsAsync(Response.FromValue(CreateBlobPropertiesStub(null), Mock.Of<Response>()));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        await sut.GetMetadataAsync("test-container", "test-blob", cts.Token);
+
+        blob.Verify(
+            b => b.GetPropertiesAsync(It.IsAny<BlobRequestConditions>(), cts.Token),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetMetadataAsync_WhenSdkFails_WithNonNotFoundStatus_ShouldPropagateException()
+    {
+        var (service, _, blob) = CreateMockBlobChain();
+        blob.Setup(b => b.GetPropertiesAsync(It.IsAny<BlobRequestConditions>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RequestFailedException(500, "InternalServerError"));
+        var sut = CreateServiceWithMockBlobChain(service);
+
+        var act = () => sut.GetMetadataAsync("test-container", "test-blob");
+
+        await act.Should().ThrowAsync<RequestFailedException>()
+            .Where(ex => ex.Status == 500);
     }
 }

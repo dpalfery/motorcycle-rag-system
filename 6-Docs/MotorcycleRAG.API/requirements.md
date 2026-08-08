@@ -48,8 +48,10 @@ MotorcycleRAG API provides the secure HTTP boundary for motorcycle knowledge que
 
 3.1. WHEN an authorized caller uploads a supported source through the ingestion upload endpoint THEN the API SHALL validate the configured size and document constraints and SHALL return an `uploadId` when staging succeeds.
 3.2. WHEN an authorized caller creates an ingestion job for a valid staged upload THEN the API SHALL create a tracked job and SHALL return an accepted job status response.
-3.3. WHEN a local processor reports progress using its processor-run identifier THEN the API SHALL update the correlated ingestion job state.
-3.4. IF an ingestion request is invalid or a source cannot be staged THEN the API SHALL return a `ProblemDetails` response and SHALL not create a successful job record.
+3.3. WHEN a local processor uploads search-chunks and no ingestion job exists for the upload THEN the API SHALL store the artifact durably and return HTTP 202 with `status: "stored-not-indexed"` instead of `status: "stored"`.
+3.4. WHEN a local processor reports progress using its processor-run identifier THEN the API SHALL update the correlated ingestion job state.
+3.5. IF an ingestion request is invalid or a source cannot be staged THEN the API SHALL return a `ProblemDetails` response and SHALL not create a successful job record.
+3.6. WHEN a search-chunks artifact is stored without indexing THEN the artifact SHALL be marked as orphaned in blob metadata and tracked by the orphan reconciliation sweep.
 
 ### Requirement 4: Operational reliability
 

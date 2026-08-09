@@ -3,7 +3,7 @@ id: reference/orphan-reconciliation
 title: Orphan Reconciliation System
 doc-type: reference
 status: current
-component: MotorcycleRAG Ingestion
+component: MotorcycleRAG API
 owner: API maintainers
 last-reviewed: 2026-08-03
 code-refs:
@@ -16,8 +16,7 @@ api-endpoints:
   - GET /api/ingestion/artifacts/orphaned
   - POST /api/ingestion/artifacts/orphaned/sweep
   - POST /api/ingestion/artifacts/orphaned/{uploadId}/adopt
-decided-by:
-  - plans/2026-08-03-processor-artifact-skip-observability
+decided-by: []
 supersedes: []
 ---
 # Orphan Reconciliation System

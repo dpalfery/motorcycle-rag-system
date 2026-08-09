@@ -3,7 +3,7 @@ id: plans/2026-08-08-orphan-sweep-deterministic-test
 title: 2026-08-08 Orphan-Sweep deterministic test via TimeProvider injection
 doc-type: plan
 status: current
-component: MotorcycleRAG.Application
+component: Core, Application, Domain, and Persistence
 owner: Maintainers
 last-reviewed: 2026-08-08
 code-refs:

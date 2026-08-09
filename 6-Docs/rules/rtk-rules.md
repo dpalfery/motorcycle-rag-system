@@ -1,4 +1,16 @@
-# RTK - Rust Token Killer 
+---
+id: rules/rtk-rules
+title: RTK - Rust Token Killer
+doc-type: rule
+status: current
+owner: Developer-experience maintainers
+last-reviewed: 2026-08-09
+code-refs: []
+api-endpoints: []
+decided-by: []
+supersedes: []
+---
+# RTK - Rust Token Killer
 
 **Usage**: Token-optimized CLI proxy for shell commands.
 

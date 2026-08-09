@@ -141,4 +141,31 @@ RUN set -eux; \
     rm -rf "${WORK}"; \
     kyber-weave --help >/dev/null
 
+# Drop to the non-root `app` user (UID/GID 1654) that Microsoft's .NET base
+# images already create with a home directory - a container escape from a root
+# process lands as root on the host (Trivy DS-0002). Everything above installs
+# while still root, and /opt/poetry, the global npm prefix, and /usr/local/bin
+# are world-readable, so `app` runs poetry/codegraph/kyber-weave without owning
+# them. Only the workspace needs to be writable: it holds the repo checkout,
+# the POETRY_VIRTUALENVS_IN_PROJECT .venv, node_modules, and dotnet obj/bin.
+#
+# HOME is set explicitly rather than left to the runtime's passwd lookup,
+# because dotnet, npm, git, and gh all resolve their config and caches from it.
+#
+# Consequence: `apt-get install` and `npm install -g` no longer work at
+# runtime. That is intended - image contents are pinned at build time, and the
+# repository guardrails already forbid agents from provisioning their own
+# tooling.
+RUN install -d -o app -g app /workspace
+
+ENV HOME=/home/app
+USER app
 WORKDIR /workspace
+
+# Run the first-use paths as `app` so the build fails here - not mid-agent-session
+# - if the non-root switch left anything unreadable, and so the .NET first-run
+# experience is primed in /home/app instead of on the agent's first command.
+RUN dotnet help >/dev/null \
+    && poetry --version \
+    && codegraph --version \
+    && kyber-weave --help >/dev/null

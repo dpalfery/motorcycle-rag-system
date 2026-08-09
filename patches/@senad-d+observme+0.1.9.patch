@@ -1,0 +1,19 @@
+diff --git a/node_modules/@senad-d/observme/src/pi/handler-runtime.ts b/node_modules/@senad-d/observme/src/pi/handler-runtime.ts
+index 9ce4cf8..0b50c0b 100644
+--- a/node_modules/@senad-d/observme/src/pi/handler-runtime.ts
++++ b/node_modules/@senad-d/observme/src/pi/handler-runtime.ts
+@@ -395,12 +395,12 @@ export function monotonicNowMs(): number {
+ export function withTelemetrySessionResourceAttributes(
+   config: ObservMeConfig,
+   lineage: AgentLineageContext,
+-  instanceId = randomUUID(),
++  instanceId = config.resource.attributes[RESOURCE_ATTRIBUTES.SERVICE_INSTANCE_ID] ?? randomUUID(),
+ ): ObservMeConfig {
+   const merged = structuredClone(config);
+   merged.resource.attributes = {
+-    ...merged.resource.attributes,
+     ...buildTelemetryInstanceResourceAttributes(instanceId),
++    ...merged.resource.attributes,
+     ...stringifyAttributes(buildResourceLineageAttributes(lineage)),
+   };
+   return inheritTenantSaltEnvironment(merged, config);

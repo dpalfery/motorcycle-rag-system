@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Time.Testing;
 using Moq;
 using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Contracts.Interfaces;
@@ -32,6 +33,26 @@ namespace MotorcycleRAG.UnitTests.Services.Ingestion;
 public class OrphanedArtifactSweepBackgroundServiceTests
 {
     private static readonly OrphanSweepResultDto EmptySweepResult = new(0, 0, 0, 0, 0);
+
+    private sealed class TimerCreatedFakeTimeProvider : FakeTimeProvider, IDisposable
+    {
+        private readonly SemaphoreSlim _timerCreated = new(0);
+
+        public Task WaitForTimerCreatedAsync() => _timerCreated.WaitAsync();
+
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            var timer = base.CreateTimer(callback, state, dueTime, period);
+            _timerCreated.Release();
+            return timer;
+        }
+
+        public void Dispose() => _timerCreated.Dispose();
+    }
 
     /// <summary>
     /// Builds a scope factory whose <c>CreateScope()</c> returns a BRAND NEW
@@ -270,24 +291,63 @@ public class OrphanedArtifactSweepBackgroundServiceTests
     [Fact]
     public async Task ExecuteAsync_UsesConfiguredOrphanSweepIntervalBetweenCycles()
     {
-        // Arrange: a 30ms interval observed over a 200ms window must yield several cycles.
-        // IngestionOptions.OrphanSweepInterval defaults to 5 minutes, so if ExecuteAsync used
-        // that default (or any other hardcoded interval on the order of seconds) instead of
-        // the configured value, at most one cycle would be observed in this window.
-        var (scopeFactoryMock, sweepServiceMock, _) = CreateMockScopeChain();
-        var loggerMock = new Mock<ILogger<OrphanedArtifactSweepBackgroundService>>();
-        var options = CreateOptions(TimeSpan.FromMilliseconds(30));
+        // Arrange
+        const int additionalCycles = 3;
+        var sweepInterval = TimeSpan.FromMilliseconds(137);
+        using var fakeTimeProvider = new TimerCreatedFakeTimeProvider();
+        var sweepCompletions = new TaskCompletionSource<bool>[1 + additionalCycles];
+        for (var index = 0; index < sweepCompletions.Length; index++)
+        {
+            sweepCompletions[index] = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+        }
 
-        using var service = new OrphanedArtifactSweepBackgroundService(scopeFactoryMock.Object, options, loggerMock.Object);
+        var sweepIndex = 0;
+        var (scopeFactoryMock, sweepServiceMock, _) = CreateMockScopeChain();
+        sweepServiceMock
+            .Setup(s => s.RunSweepAsync(It.IsAny<CancellationToken>()))
+            .Callback(() =>
+            {
+                var completedSweepIndex = Interlocked.Increment(ref sweepIndex) - 1;
+                sweepCompletions[completedSweepIndex].TrySetResult(true);
+            })
+            .ReturnsAsync(EmptySweepResult);
+
+        var loggerMock = new Mock<ILogger<OrphanedArtifactSweepBackgroundService>>();
+        var options = CreateOptions(sweepInterval);
+
+        using var service = new OrphanedArtifactSweepBackgroundService(
+            scopeFactoryMock.Object,
+            options,
+            loggerMock.Object,
+            fakeTimeProvider);
+        using var cts = new CancellationTokenSource();
 
         // Act
-        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
-        await InvokeExecuteAsync(service, cts.Token);
+        var watchdog = TimeSpan.FromSeconds(10);
+        // CA2025: executionTask is awaited below before the using-scope disposes
+        // service/fakeTimeProvider; the task cannot outlive the disposables on any
+        // completing path, and failure paths already fail the test.
+#pragma warning disable CA2025
+        var executionTask = Task.Run(() => InvokeExecuteAsync(service, cts.Token));
+#pragma warning restore CA2025
+        await sweepCompletions[0].Task.WaitAsync(watchdog);
+        await fakeTimeProvider.WaitForTimerCreatedAsync().WaitAsync(watchdog);
 
-        // Assert: bounded above and below to avoid CI timing flakiness while still pinning
-        // that the cadence is driven by the configured (short) interval.
-        sweepServiceMock.Verify(s => s.RunSweepAsync(It.IsAny<CancellationToken>()), Times.AtLeast(3));
-        sweepServiceMock.Verify(s => s.RunSweepAsync(It.IsAny<CancellationToken>()), Times.AtMost(50));
+        for (var cycle = 1; cycle <= additionalCycles; cycle++)
+        {
+            fakeTimeProvider.Advance(sweepInterval);
+            await sweepCompletions[cycle].Task.WaitAsync(watchdog);
+            await fakeTimeProvider.WaitForTimerCreatedAsync().WaitAsync(watchdog);
+        }
+
+        await cts.CancelAsync();
+        await executionTask.WaitAsync(watchdog);
+
+        // Assert
+        sweepServiceMock.Verify(
+            s => s.RunSweepAsync(It.IsAny<CancellationToken>()),
+            Times.Exactly(1 + additionalCycles));
     }
 
     // ---------------------------------------------------------------------
@@ -308,5 +368,21 @@ public class OrphanedArtifactSweepBackgroundServiceTests
 
         var act3 = () => new OrphanedArtifactSweepBackgroundService(scopeFactory.Object, options, null!);
         act3.Should().Throw<ArgumentNullException>().WithParameterName("logger");
+    }
+
+    [Fact]
+    public void Constructor_WithNullTimeProvider_ThrowsArgumentNullException()
+    {
+        var scopeFactory = new Mock<IServiceScopeFactory>();
+        var options = CreateOptions(TimeSpan.FromMinutes(5));
+        var logger = new Mock<ILogger<OrphanedArtifactSweepBackgroundService>>();
+
+        var act = () => new OrphanedArtifactSweepBackgroundService(
+            scopeFactory.Object,
+            options,
+            logger.Object,
+            null!);
+
+        act.Should().Throw<ArgumentNullException>().WithParameterName("timeProvider");
     }
 }

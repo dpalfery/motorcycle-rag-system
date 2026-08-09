@@ -1323,6 +1323,66 @@ public sealed class IngestionJobsControllerTests
     }
 
     [Fact]
+    public async Task AdoptOrphanedArtifactAsync_WhenIndexingThrows_Returns500AdoptionFailedProblemDetails()
+    {
+        var uploadId = "orphan-upload-indexing-failure";
+        var jobId = Guid.NewGuid();
+        var orphan = new OrphanedArtifactDto(
+            uploadId,
+            "search-chunks",
+            $"{uploadId}/chunks.jsonl",
+            "OrphanedTerminal",
+            "NoIngestionJobAfterMaxAttempts",
+            5,
+            DateTimeOffset.UtcNow.AddHours(-30));
+
+        var job = CreateRehydratedJob(jobId, uploadId);
+
+        var sweepService = new Mock<IOrphanedArtifactSweepService>();
+        sweepService
+            .Setup(service => service.ListOrphansAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([orphan]);
+
+        var jobRepository = new Mock<IIngestionJobRepository>();
+        jobRepository
+            .Setup(repository => repository.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        await using var blobStream = new MemoryStream("chunk-content"u8.ToArray());
+        var blobStorage = new Mock<IBlobStorageService>();
+        blobStorage
+            .Setup(service => service.DownloadAsync("search-chunks", orphan.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blobStream);
+
+        var coordinator = new Mock<ISearchChunkIndexingCoordinator>();
+        coordinator
+            .Setup(service => service.IndexAsync(
+                It.IsAny<Stream>(),
+                uploadId,
+                "search-chunks",
+                orphan.BlobPath,
+                It.IsAny<Guid>(),
+                It.Is<IngestionJob>(candidate => candidate.IngestionJobId == jobId),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("indexing failed"));
+
+        var sut = CreateController(
+            blobStorage.Object,
+            orphanedArtifactSweepService: sweepService.Object,
+            searchChunkIndexingCoordinator: coordinator.Object,
+            ingestionJobRepository: jobRepository.Object);
+
+        var result = await sut.AdoptOrphanedArtifactAsync(
+            uploadId,
+            new OrphanAdoptRequest { IngestionJobId = jobId },
+            CancellationToken.None);
+
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        objectResult.Value.Should().BeOfType<ProblemDetails>().Which.Title.Should().Be("Adoption failed");
+    }
+
+    [Fact]
     public async Task AdoptOrphanedArtifactAsync_WhenOrphanNotFound_ReturnsNotFoundWithoutCallingCoordinator()
     {
         var jobId = Guid.NewGuid();

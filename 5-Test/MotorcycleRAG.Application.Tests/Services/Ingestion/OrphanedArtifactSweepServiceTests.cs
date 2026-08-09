@@ -296,6 +296,161 @@ public class OrphanedArtifactSweepServiceTests
     private static SearchChunkIndexingOutcomeDto SucceededOutcome(Guid indexedArtifactId, Guid jobId) =>
         new(indexedArtifactId, jobId, true, 2, 2, 0, IndexedArtifactState.Completed, true, null);
 
+    [Fact]
+    public async Task ListOrphansAsync_WhenNoBlobsExist_ReturnsEmptyCollection()
+    {
+        // Arrange
+        _blobStorageMock
+            .Setup(x => x.ListAsync(Container, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Array.Empty<BlobObjectDescriptor>());
+
+        // Act
+        var result = await _sut.ListOrphansAsync();
+
+        // Assert
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListOrphansAsync_WhenBlobHasNullOrMissingOrNonOrphanState_SkipsBlob()
+    {
+        // Arrange
+        var nullMetadataBlob = new BlobObjectDescriptor
+        {
+            Name = BlobPathFor(Guid.NewGuid().ToString()),
+            Metadata = null!
+        };
+        var missingStateBlob = NonOrphanBlob(Guid.NewGuid().ToString(), state: null);
+        var nonOrphanBlob = NonOrphanBlob(Guid.NewGuid().ToString(), state: "Completed");
+
+        _blobStorageMock
+            .Setup(x => x.ListAsync(Container, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { nullMetadataBlob, missingStateBlob, nonOrphanBlob });
+
+        // Act
+        var result = await _sut.ListOrphansAsync();
+
+        // Assert
+        result.Should().BeEmpty();
+        _jobRepoMock.Verify(
+            x => x.GetLatestByInputAsync(It.IsAny<string>(), It.IsAny<IngestionJobType>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task ListOrphansAsync_WhenOrphanedBlobPathHasNoUploadIdSegment_SkipsBlob()
+    {
+        // Arrange
+        var blob = new BlobObjectDescriptor
+        {
+            Name = "chunks.jsonl",
+            Metadata = new Dictionary<string, string>
+            {
+                [MetaState] = StateOrphaned
+            }
+        };
+        _blobStorageMock
+            .Setup(x => x.ListAsync(Container, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { blob });
+
+        // Act
+        var result = await _sut.ListOrphansAsync();
+
+        // Assert
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ListOrphansAsync_WithOrphanedAndTerminalBlobs_ReturnsMappedDtos()
+    {
+        // Arrange
+        var orphanUploadId = Guid.NewGuid().ToString();
+        var orphanFirstDetected = new DateTimeOffset(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
+        var orphanBlob = OrphanBlob(orphanUploadId, attempts: 2, firstDetectedUtc: orphanFirstDetected);
+
+        var terminalUploadId = Guid.NewGuid().ToString();
+        var terminalFirstDetected = new DateTimeOffset(2026, 2, 3, 4, 5, 6, TimeSpan.Zero);
+        var terminalBlob = TerminalBlob(
+            terminalUploadId,
+            reason: ReasonMaxAttempts,
+            attempts: 5,
+            firstDetectedUtc: terminalFirstDetected);
+
+        _blobStorageMock
+            .Setup(x => x.ListAsync(Container, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { orphanBlob, terminalBlob });
+
+        // Act
+        var result = await _sut.ListOrphansAsync();
+
+        // Assert
+        result.Should().HaveCount(2);
+
+        var orphan = result[0];
+        orphan.UploadId.Should().Be(orphanUploadId);
+        orphan.Container.Should().Be(Container);
+        orphan.BlobPath.Should().Be(BlobPathFor(orphanUploadId));
+        orphan.State.Should().Be(StateOrphaned);
+        orphan.OrphanReason.Should().Be(ReasonNoJob);
+        orphan.OrphanAttempts.Should().Be(2);
+        orphan.OrphanFirstDetectedUtc.Should().Be(orphanFirstDetected);
+
+        var terminal = result[1];
+        terminal.UploadId.Should().Be(terminalUploadId);
+        terminal.Container.Should().Be(Container);
+        terminal.BlobPath.Should().Be(BlobPathFor(terminalUploadId));
+        terminal.State.Should().Be(StateOrphanedTerminal);
+        terminal.OrphanReason.Should().Be(ReasonMaxAttempts);
+        terminal.OrphanAttempts.Should().Be(5);
+        terminal.OrphanFirstDetectedUtc.Should().Be(terminalFirstDetected);
+    }
+
+    [Fact]
+    public async Task ListOrphansAsync_WhenAttemptsOrFirstDetectedUnparseable_UsesDefaults()
+    {
+        // Arrange
+        var uploadId = Guid.NewGuid().ToString();
+        var blob = new BlobObjectDescriptor
+        {
+            Name = BlobPathFor(uploadId),
+            Metadata = new Dictionary<string, string>
+            {
+                [MetaState] = StateOrphaned,
+                [MetaOrphanReason] = ReasonNoJob,
+                [MetaOrphanAttempts] = "not-an-integer",
+                [MetaOrphanFirstDetectedUtc] = "not-a-date"
+            }
+        };
+        _blobStorageMock
+            .Setup(x => x.ListAsync(Container, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new[] { blob });
+
+        // Act
+        var result = await _sut.ListOrphansAsync();
+
+        // Assert
+        result.Should().ContainSingle();
+        result[0].OrphanAttempts.Should().Be(0);
+        result[0].OrphanFirstDetectedUtc.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ListOrphansAsync_WhenBlobStorageListAsyncThrows_PropagatesException()
+    {
+        // Arrange
+        var expectedException = new InvalidOperationException("blob storage unavailable");
+        _blobStorageMock
+            .Setup(x => x.ListAsync(Container, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(expectedException);
+
+        // Act
+        var act = () => _sut.ListOrphansAsync();
+
+        // Assert
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("blob storage unavailable");
+    }
+
     // --- (a) Heal: job now exists -> coordinator invoked with real anchors, orphan healed ---
 
     [Fact]

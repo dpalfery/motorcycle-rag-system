@@ -37,6 +37,7 @@ public sealed class OrphanedArtifactSweepBackgroundService : BackgroundService
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IOptions<IngestionOptions> _ingestionOptions;
     private readonly ILogger<OrphanedArtifactSweepBackgroundService> _logger;
+    private readonly TimeProvider _timeProvider;
 
     // Serializes sweeps: only one concurrent sweep is allowed to protect blob container
     // operations. Acquired by the periodic loop; released by future on-demand endpoint.
@@ -54,14 +55,35 @@ public sealed class OrphanedArtifactSweepBackgroundService : BackgroundService
         IServiceScopeFactory scopeFactory,
         IOptions<IngestionOptions> ingestionOptions,
         ILogger<OrphanedArtifactSweepBackgroundService> logger)
+        : this(scopeFactory, ingestionOptions, logger, TimeProvider.System)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="OrphanedArtifactSweepBackgroundService"/> class
+    /// with an explicit <see cref="TimeProvider"/>, used to make the inter-cycle delay
+    /// deterministically controllable in tests. Production resolves the overload above
+    /// (without the <c>TimeProvider</c> parameter), which delegates to this constructor with <see cref="TimeProvider.System"/>.
+    /// </summary>
+    /// <param name="scopeFactory">Factory used to create DI scopes per sweep cycle.</param>
+    /// <param name="ingestionOptions">Configuration for the ingestion pipeline, including sweep interval.</param>
+    /// <param name="logger">Logger for structured lifecycle and per-cycle diagnostics.</param>
+    /// <param name="timeProvider">Time provider that drives the inter-cycle delay. Production uses <see cref="TimeProvider.System"/>.</param>
+    public OrphanedArtifactSweepBackgroundService(
+        IServiceScopeFactory scopeFactory,
+        IOptions<IngestionOptions> ingestionOptions,
+        ILogger<OrphanedArtifactSweepBackgroundService> logger,
+        TimeProvider timeProvider)
     {
         ArgumentNullException.ThrowIfNull(scopeFactory);
         ArgumentNullException.ThrowIfNull(ingestionOptions);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(timeProvider);
 
         _scopeFactory = scopeFactory;
         _ingestionOptions = ingestionOptions;
         _logger = logger;
+        _timeProvider = timeProvider;
     }
 
     /// <inheritdoc/>
@@ -110,7 +132,7 @@ public sealed class OrphanedArtifactSweepBackgroundService : BackgroundService
 
             try
             {
-                await Task.Delay(sweepInterval, stoppingToken).ConfigureAwait(false);
+                await Task.Delay(sweepInterval, _timeProvider, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

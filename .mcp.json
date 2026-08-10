@@ -43,7 +43,7 @@
       "url": "https://api.githubcopilot.com/mcp/"
     },
     "microsoft-learn": {
-      "type": "remote",
+      "type": "http",
       "url": "https://learn.microsoft.com/api/mcp"
     }
   }

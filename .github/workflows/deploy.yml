@@ -20,6 +20,9 @@ permissions:
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+    # Gated: the `prod` environment requires a reviewer approval before this
+    # job starts, so a dispatch from any collaborator waits on sign-off.
+    environment: prod
     steps:
       # ── Source ──────────────────────────────────────────────────────
       - name: Checkout

@@ -254,6 +254,25 @@ class ApiClient:
                     require_non_redirect_success(response)
                 if response.status_code < 500:
                     if response.is_success or response.status_code == 202:
+                        # For 202 (Accepted), check if the response body indicates
+                        # the artifact was stored but indexing was skipped
+                        if response.status_code == 202:
+                            try:
+                                body = response.json()
+                                # Only process if response body is a dictionary; if it's
+                                # a bare string, array, or number, proceed normally
+                                if isinstance(body, dict):
+                                    status = body.get("status")
+                                    if status and status != "stored":
+                                        logger.warning(
+                                            "Artifact uploaded for %s but indexing was skipped: "
+                                            "returned status is %s",
+                                            _safe_log_value(upload_id),
+                                            _safe_log_value(status),
+                                        )
+                            except (json.JSONDecodeError, ValueError):
+                                # If we can't parse the JSON, proceed normally
+                                pass
                         logger.info(
                             "Uploaded %s artifact for upload %s.",
                             _safe_log_value(artifact_type),

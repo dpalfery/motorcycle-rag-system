@@ -28,6 +28,8 @@ public sealed class IngestionJobServiceDualModeTests {
     private readonly Mock<IAzureSearchDocumentService> _searchDocumentService;
     private readonly Mock<IGraphRepository> _graphRepository;
     private readonly Mock<IGraphEntityIngestionService> _graphEntityIngestionService;
+    private readonly Mock<IBikeModelRepository> _bikeModelRepository;
+    private readonly ManualBikeLinker _manualBikeLinker;
     private readonly GraphIngestionChannel _graphIngestionChannel;
     private readonly Mock<ILogger<IngestionJobService>> _logger;
 
@@ -39,8 +41,13 @@ public sealed class IngestionJobServiceDualModeTests {
         _searchDocumentService = new Mock<IAzureSearchDocumentService>();
         _graphRepository = new Mock<IGraphRepository>();
         _graphEntityIngestionService = new Mock<IGraphEntityIngestionService>();
+        _bikeModelRepository = new Mock<IBikeModelRepository>();
         _graphIngestionChannel = new GraphIngestionChannel();
         _logger = new Mock<ILogger<IngestionJobService>>();
+
+        // Create ManualBikeLinker with real instance (it's sealed, can't be mocked)
+        var linkerLogger = new Mock<ILogger<ManualBikeLinker>>();
+        _manualBikeLinker = new ManualBikeLinker(_bikeModelRepository.Object, _graphRepository.Object, linkerLogger.Object);
 
         _repository
             .Setup(r => r.CreateAsync(It.IsAny<IngestionJob>(), It.IsAny<CancellationToken>()))
@@ -105,6 +112,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _graphRepository.Object,
             _graphEntityIngestionService.Object,
             _graphIngestionChannel,
+            _manualBikeLinker,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);
@@ -123,6 +131,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _graphRepository.Object,
             _graphEntityIngestionService.Object,
             _graphIngestionChannel,
+            _manualBikeLinker,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);
@@ -141,6 +150,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _graphRepository.Object,
             null!,
             _graphIngestionChannel,
+            _manualBikeLinker,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);
@@ -159,6 +169,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _graphRepository.Object,
             _graphEntityIngestionService.Object,
             _graphIngestionChannel,
+            _manualBikeLinker,
             null!,
             CreateIngestionOptions(),
             _logger.Object);
@@ -177,6 +188,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _graphRepository.Object,
             _graphEntityIngestionService.Object,
             _graphIngestionChannel,
+            _manualBikeLinker,
             CreateBlobOptions(),
             null!,
             _logger.Object);
@@ -195,6 +207,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _graphRepository.Object,
             _graphEntityIngestionService.Object,
             _graphIngestionChannel,
+            _manualBikeLinker,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             null!);
@@ -1138,6 +1151,7 @@ public sealed class IngestionJobServiceDualModeTests {
             _graphRepository.Object,
             _graphEntityIngestionService.Object,
             _graphIngestionChannel,
+            _manualBikeLinker,
             CreateBlobOptions(),
             CreateIngestionOptions(),
             _logger.Object);

@@ -1,4 +1,9 @@
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
+using System.Text;
+using System.Text.Json;
 using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
@@ -6,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.ValueObjects;
 using MotorcycleRAG.Persistence.Azure.Search;
 using AzureSearchOptions = Azure.Search.Documents.SearchOptions;
@@ -1063,6 +1069,244 @@ public sealed class AzureSearchQueryServiceTests
             var mockResp = new Mock<global::Azure.Response>();
             var page = Page<T>.FromValues(_items, continuationToken, mockResp.Object);
             return new FakeAsyncPageable<Page<T>>(new[] { page });
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // T10 proof: real Azure SDK JSON deserialization carries indexedArtifactId
+    // -------------------------------------------------------------------------
+    // Every test above feeds a hand-built SearchResult DTO through
+    // SearchModelFactory, which never invokes the Azure SDK's STJ deserializer —
+    // that is the mock blind-spot the plan flags. These two tests feed raw JSON
+    // through a REAL SearchClient (a stub HttpMessageHandler wired via Azure.Core's
+    // HttpClientTransport), so the SDK deserializes the index document itself and
+    // ExecuteSearchAsync's real projection runs. The seam mocked is
+    // ISearchClientFactory.GetClient() returning a real SearchClient backed by the
+    // stub HTTP transport; nothing above the HTTP boundary is faked, so this proves
+    // the actual JSON→SearchResult.Metadata["indexedArtifactId"] mapping.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SearchAsync_RealSdkDeserialization_ProjectsAnchorFieldsIntoMetadata()
+    {
+        const string indexedArtifactId = "550e8400-e29b-41d4-a716-446655440000";
+        const string ingestionJobId = "11111111-1111-1111-1111-111111111111";
+        const string sourceContentHash = "sha256:deadbeef";
+
+        // Raw index-document JSON exactly as Azure AI Search would return it (OData
+        // envelope + a value[] element carrying the three T9 anchor fields). The field
+        // names match the index schema (camelCase), which the SDK's default serializer
+        // maps to the PascalCase SearchResult properties.
+        var json = "{\"@odata.context\":\"https://fake.search.windows.net/indexes('motorcycle-sport')/docs($count=false)\","
+                 + "\"value\":[{"
+                 + "\"@search.score\":0.92,"
+                 + "\"id\":\"upload-pdf-0\","
+                 + "\"content\":\"engine maintenance\","
+                 + "\"indexedArtifactId\":\"" + indexedArtifactId + "\","
+                 + "\"ingestionJobId\":\"" + ingestionJobId + "\","
+                 + "\"sourceContentHash\":\"" + sourceContentHash + "\""
+                 + "}]}";
+
+        var sut = CreateSut();
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns("corr-t10-anchor");
+        _correlationServiceMock.Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(new Mock<IDisposable>().Object);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns("motorcycle-sport");
+        _clientFactoryMock.Setup(x => x.GetClient(It.IsAny<MotorcycleCategory>()))
+            .Returns(BuildRealSearchClientReturningJson(json));
+        SetupResilienceToInvokeOperation<SearchResult[]>("AzureSearch.Search");
+
+        var results = await sut.SearchAsync("engine",
+            new Core.Options.SearchOptions { MaxSearchResults = 10, Category = "sport" });
+
+        // The SDK deserialized the real JSON, ExecuteSearchAsync projected the anchors.
+        results.Should().HaveCount(1);
+        // The three T9/T10 anchors survived the REAL Azure SDK deserializer + the
+        // ExecuteSearchAsync projection into Metadata. (Id/Content mapping is a
+        // pre-existing concern outside T10 scope; the anchor is the contract here.)
+        results[0].Metadata.Should().ContainKey("indexedArtifactId");
+        results[0].Metadata["indexedArtifactId"].Should().Be(indexedArtifactId);
+        results[0].Metadata.Should().ContainKey("ingestionJobId");
+        results[0].Metadata["ingestionJobId"].Should().Be(ingestionJobId);
+        results[0].Metadata.Should().ContainKey("sourceContentHash");
+        results[0].Metadata["sourceContentHash"].Should().Be(sourceContentHash);
+    }
+
+    [Fact]
+    public async Task SearchAsync_RealSdkDeserialization_WithoutAnchorFields_OmitsMetadataKeys()
+    {
+        // An index document that predates the T9 schema change (no anchor fields)
+        // must NOT have the keys synthesized — the hop emits indexed_artifact_id: null.
+        var json = "{\"@odata.context\":\"https://fake.search.windows.net/indexes('motorcycle-sport')/docs($count=false)\","
+                 + "\"value\":[{"
+                 + "\"@search.score\":0.5,"
+                 + "\"id\":\"legacy-chunk-0\","
+                 + "\"content\":\"legacy content\""
+                 + "}]}";
+
+        var sut = CreateSut();
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns("corr-t10-legacy");
+        _correlationServiceMock.Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(new Mock<IDisposable>().Object);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns("motorcycle-sport");
+        _clientFactoryMock.Setup(x => x.GetClient(It.IsAny<MotorcycleCategory>()))
+            .Returns(BuildRealSearchClientReturningJson(json));
+        SetupResilienceToInvokeOperation<SearchResult[]>("AzureSearch.Search");
+
+        var results = await sut.SearchAsync("legacy",
+            new Core.Options.SearchOptions { MaxSearchResults = 10, Category = "sport" });
+
+        results.Should().HaveCount(1);
+        results[0].Metadata.Should().NotContainKey("indexedArtifactId");
+        results[0].Metadata.Should().NotContainKey("ingestionJobId");
+        results[0].Metadata.Should().NotContainKey("sourceContentHash");
+    }
+
+    // -------------------------------------------------------------------------
+    // T9 fix proof: real Azure SDK JSON deserialization maps camelCase id/content
+    // -------------------------------------------------------------------------
+    // The Azure.Search.Documents document deserializer uses PLAIN System.Text.Json
+    // (no camelCase/case-insensitive policy). The index schema stores these fields
+    // as camelCase "id"/"content". Without an explicit [JsonPropertyName] on the
+    // SearchResult properties, PascalCase Id/Content do not map and deserialize
+    // EMPTY in production. This test feeds the real SDK deserializer camelCase JSON
+    // and asserts the values survive. FAILS until [JsonPropertyName] is added.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task SearchAsync_RealSdkDeserialization_MapsCamelCaseIdAndContentFields()
+    {
+        // Raw index-document JSON with camelCase field names exactly as the index
+        // stores them. The SDK deserializer runs with its default (plain) STJ
+        // options — no camelCase/case-insensitive policy.
+        var json = "{\"@odata.context\":\"https://fake.search.windows.net/indexes('motorcycle-sport')/docs($count=false)\","
+                 + "\"value\":[{"
+                 + "\"@search.score\":0.88,"
+                 + "\"id\":\"abc-123\","
+                 + "\"content\":\"engine torque specifications\""
+                 + "}]}";
+
+        var sut = CreateSut();
+        _correlationServiceMock.Setup(x => x.GetOrCreateCorrelationId()).Returns("corr-t9-idcontent");
+        _correlationServiceMock.Setup(x => x.CreateLoggingScope(It.IsAny<Dictionary<string, object>>()))
+            .Returns(new Mock<IDisposable>().Object);
+        _clientFactoryMock.Setup(x => x.GetIndexName(It.IsAny<MotorcycleCategory>()))
+            .Returns("motorcycle-sport");
+        _clientFactoryMock.Setup(x => x.GetClient(It.IsAny<MotorcycleCategory>()))
+            .Returns(BuildRealSearchClientReturningJson(json));
+        SetupResilienceToInvokeOperation<SearchResult[]>("AzureSearch.Search");
+
+        var results = await sut.SearchAsync("torque",
+            new Core.Options.SearchOptions { MaxSearchResults = 10, Category = "sport" });
+
+        results.Should().HaveCount(1);
+        // These assertions FAIL without [JsonPropertyName("id")]/["content"]: the
+        // SDK's plain STJ deserializer does not map camelCase index fields to the
+        // PascalCase properties, so they deserialize as the default empty string.
+        results[0].Id.Should().Be("abc-123");
+        results[0].Content.Should().Be("engine torque specifications");
+    }
+
+    // -------------------------------------------------------------------------
+    // T9 cache round-trip gate: [JsonPropertyName("id")]/["content"] must not break
+    // the query-cache serialization path. Both cache services (MemoryQueryCacheService
+    // and DistributedQueryCacheService) serialize MotorcycleQueryResponse (which
+    // embeds SearchResult[]) with { PropertyNamingPolicy = CamelCase, WriteIndented =
+    // false }. The API global policy (JsonSerializationConfiguration.DefaultOptions)
+    // is camelCase + case-insensitive + WhenWritingNull. The explicit attribute pins
+    // the wire name to "id"/"content" under BOTH policies, so the round-trip must hold.
+    // If this gate FAILS after adding the attribute, the fix is a regression — STOP.
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void SearchResult_IdAndContent_RoundTripUnderBothCacheAndApiPolicies()
+    {
+        // Populate a SearchResult with non-default Id/Content (plus anchor fields that
+        // carry WhenWritingNull so they exercise the DefaultOptions ignore condition).
+        var original = new SearchResult
+        {
+            Id = "rt-id-42",
+            Content = "round-trip body content",
+            RelevanceScore = 0.91f,
+            Source = new SearchSource
+            {
+                AgentType = SearchAgentType.VectorSearch,
+                SourceName = "RoundTrip Source",
+                DocumentId = "rt-doc-1"
+            },
+            IndexedArtifactId = "550e8400-e29b-41d4-a716-446655440000",
+            Metadata = { ["page"] = 7 }
+        };
+
+        // (a) API/global policy — camelCase + case-insensitive + WhenWritingNull +
+        //     JsonStringEnumConverter (what the HTTP boundary emits/consumes).
+        var apiOptions = JsonSerializationConfiguration.DefaultOptions;
+
+        // (b) Cache-services policy — exactly what MemoryQueryCacheService and
+        //     DistributedQueryCacheService construct internally.
+        var cacheOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            WriteIndented = false
+        };
+
+        foreach (var options in new[] { apiOptions, cacheOptions })
+        {
+            var json = JsonSerializer.Serialize(original, options);
+            var roundTripped = JsonSerializer.Deserialize<SearchResult>(json, options)!;
+
+            roundTripped.Id.Should().Be("rt-id-42",
+                "the [JsonPropertyName(\"id\")] attribute pins the wire name across both policies");
+            roundTripped.Content.Should().Be("round-trip body content",
+                "the [JsonPropertyName(\"content\")] attribute pins the wire name across both policies");
+            roundTripped.IndexedArtifactId.Should().Be("550e8400-e29b-41d4-a716-446655440000");
+            roundTripped.RelevanceScore.Should().Be(0.91f);
+        }
+    }
+
+    /// <summary>
+    /// Builds a real <see cref="SearchClient"/> that returns the given raw JSON body
+    /// for every request, via a stub <see cref="HttpMessageHandler"/> wired through
+    /// Azure.Core's <c>HttpClientTransport</c>. The SDK's full request → response →
+    /// STJ-deserialization pipeline runs unmodified; only the network is faked.
+    /// </summary>
+    private static SearchClient BuildRealSearchClientReturningJson(string json)
+    {
+        var handler = new StubSearchHandler(json);
+        var options = new global::Azure.Search.Documents.SearchClientOptions
+        {
+            Transport = new global::Azure.Core.Pipeline.HttpClientTransport(handler),
+            Retry = { MaxRetries = 0 }
+        };
+        return new SearchClient(
+            new Uri("https://fake.search.windows.net"),
+            "motorcycle-sport",
+            new AzureKeyCredential("fake-key"),
+            options);
+    }
+
+    /// <summary>
+    /// Returns a canned JSON response body for any Azure Search request, bypassing
+    /// the network. Used to drive the real SDK deserializer with raw JSON so the
+    /// JSON→SearchResult mapping is exercised (closing the mock blind-spot).
+    /// </summary>
+    private sealed class StubSearchHandler : HttpMessageHandler
+    {
+        private readonly byte[] _content;
+
+        public StubSearchHandler(string json) => _content = Encoding.UTF8.GetBytes(json);
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new ByteArrayContent(_content)
+            };
+            response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            return Task.FromResult(response);
         }
     }
 }

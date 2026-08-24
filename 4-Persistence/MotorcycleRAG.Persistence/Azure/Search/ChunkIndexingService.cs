@@ -68,8 +68,16 @@ public sealed class ChunkIndexingService : IChunkIndexingService
     /// Reads a JSONL stream line-by-line, resolves each chunk's category, groups chunks by
     /// category, and upserts each homogeneous group (in <see cref="BatchSize"/> sub-batches)
     /// into the matching category index.
+    /// Stamps every parsed chunk with the provided anchor metadata (indexedArtifactId, ingestionJobId,
+    /// sourceContentHash) per plan decision D3.
     /// </summary>
-    public async Task<ChunkIndexingResult> IndexFromJsonlAsync(Stream jsonlStream, string uploadId, CancellationToken ct = default)
+    public async Task<ChunkIndexingResult> IndexFromJsonlAsync(
+        Stream jsonlStream,
+        string uploadId,
+        Guid indexedArtifactId,
+        Guid ingestionJobId,
+        string? sourceContentHash,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(jsonlStream);
         ArgumentException.ThrowIfNullOrWhiteSpace(uploadId);
@@ -90,7 +98,14 @@ public sealed class ChunkIndexingService : IChunkIndexingService
                 var chunk = JsonSerializer.Deserialize<ChunkIndexRecord>(line);
                 if (chunk is not null)
                 {
-                    records.Add(chunk);
+                    // D3: Stamp every parsed record with the resolved anchor metadata before grouping/upload.
+                    var stampedChunk = chunk with
+                    {
+                        IndexedArtifactId = indexedArtifactId == Guid.Empty ? null : indexedArtifactId.ToString(),
+                        IngestionJobId = ingestionJobId == Guid.Empty ? null : ingestionJobId.ToString(),
+                        SourceContentHash = string.IsNullOrEmpty(sourceContentHash) ? null : sourceContentHash
+                    };
+                    records.Add(stampedChunk);
                 }
             }
             catch (JsonException jsonEx)
@@ -530,5 +545,33 @@ public sealed class ChunkIndexingService : IChunkIndexingService
 
         [JsonPropertyName("updatedAt")]
         public DateTimeOffset UpdatedAt { get; init; }
+
+        /// <summary>
+        /// Canonical anchor ID linking this chunk to its indexed artifact in the relational store.
+        /// Set by ProcessorArtifactService per plan decision D3 before the chunk is indexed.
+        /// Stored as a string representation of the Guid for serialization into Azure AI Search.
+        /// </summary>
+        [JsonPropertyName("indexedArtifactId")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? IndexedArtifactId { get; init; }
+
+        /// <summary>
+        /// Canonical ID of the ingestion job that produced this chunk.
+        /// Set by ProcessorArtifactService per plan decision D3 before the chunk is indexed.
+        /// Stored as a string representation of the Guid for serialization into Azure AI Search.
+        /// </summary>
+        [JsonPropertyName("ingestionJobId")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? IngestionJobId { get; init; }
+
+        /// <summary>
+        /// Content hash or version tag for the source document from which this chunk was extracted.
+        /// Mirrors ManualDocument.SourceContentHash to enable version-consistent synchronization
+        /// between vector metadata and SQL graph nodes.
+        /// Set by ProcessorArtifactService per plan decision D3 before the chunk is indexed.
+        /// </summary>
+        [JsonPropertyName("sourceContentHash")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? SourceContentHash { get; init; }
     }
 }

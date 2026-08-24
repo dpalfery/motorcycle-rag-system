@@ -62,9 +62,10 @@ The Local Processing Service converts locally available motorcycle sources into 
 
 4.1. WHEN a job is accepted, running, completed, stopped, or failed THEN the service SHALL expose its current state through the job endpoints.
 4.2. WHEN a processor produces artifacts or advances a correlated ingestion stage THEN the service SHALL use its configured authenticated API client to report the appropriate result.
-4.3. WHEN a client cleans up jobs THEN the service SHALL delete terminal job records and SHALL preserve active work.
-4.4. IF an unexpected processing error occurs THEN the service SHALL log diagnostic details locally and SHALL return a sanitized HTTP error response.
-4.5. WHEN untrusted strings are written to logs THEN the service SHALL encode control characters with the shared reversible log sanitizer so raw CR/LF/tab/NUL/C0/C1 characters cannot forge log lines, while preserving printable diagnostic content.
+4.3. WHEN a search-chunks artifact is uploaded and the API returns HTTP 202 with response status `"stored-not-indexed"` THEN the service SHALL log a warning identifying the upload ID and returned status, SHALL NOT retry, and SHALL treat the upload as successful.
+4.4. WHEN a client cleans up jobs THEN the service SHALL delete terminal job records and SHALL preserve active work.
+4.5. IF an unexpected processing error occurs THEN the service SHALL log diagnostic details locally and SHALL return a sanitized HTTP error response.
+4.6. WHEN untrusted strings are written to logs THEN the service SHALL encode control characters with the shared reversible log sanitizer so raw CR/LF/tab/NUL/C0/C1 characters cannot forge log lines, while preserving printable diagnostic content.
 
 ### Requirement 5: Outbound endpoint and local path safety
 

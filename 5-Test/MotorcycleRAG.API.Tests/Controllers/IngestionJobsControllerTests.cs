@@ -1,6 +1,7 @@
 using System.Text;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,7 +11,10 @@ using MotorcycleRAG.Application.Services.Ingestion;
 using MotorcycleRAG.Application.Features.Ingestion.Validators;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Core.Options;
+using MotorcycleRAG.Domain.Entities;
+using MotorcycleRAG.Domain.Enums;
 
 namespace MotorcycleRAG.UnitTests.Presentation.API.Controllers;
 
@@ -1109,6 +1113,459 @@ public sealed class IngestionJobsControllerTests
         (await sut.RetryJobAsync(jobId, CancellationToken.None)).Should().BeOfType<ConflictObjectResult>();
     }
 
+    // === GET /api/ingestion/artifacts/orphaned (T17 / D15) ===
+    //
+    // Design decision for the T17 implementer: IOrphanedArtifactSweepService currently exposes only
+    // RunSweepAsync (see 3-Domain/MotorcycleRAG.Contracts/Interfaces/IOrphanedArtifactSweepService.cs).
+    // There is no listing capability. Rather than have this Presentation-layer controller reach past
+    // Contracts into Application's internal ProcessorArtifactService.BlobMetadata / SearchChunksArtifact
+    // constants (both `internal` to MotorcycleRAG.Application and therefore not visible from the API
+    // assembly) or duplicate those literal metadata-key/state strings here, these tests assume T17 adds:
+    //
+    //     Task<IReadOnlyList<OrphanedArtifactDto>> ListOrphansAsync(CancellationToken cancellationToken = default);
+    //
+    // to IOrphanedArtifactSweepService, implemented by OrphanedArtifactSweepService by projecting
+    // IBlobStorageService.ListAsync's metadata-carrying results (T9) into OrphanedArtifactDto for both
+    // the Orphaned and OrphanedTerminal states. This keeps the orphan state-machine's metadata-key
+    // knowledge encapsulated in Application, matching the Clean Architecture placement rule that API may
+    // depend on Application/Contracts but must not duplicate Application-internal constants.
+    [Fact]
+    public async Task GetOrphanedArtifactsAsync_ReturnsOkWithOrphanedAndOrphanedTerminalEntries()
+    {
+        var expected = new List<OrphanedArtifactDto>
+        {
+            new(
+                "upload-orphan-1",
+                "search-chunks",
+                "upload-orphan-1/chunks.jsonl",
+                "Orphaned",
+                "NoIngestionJob",
+                1,
+                DateTimeOffset.UtcNow.AddMinutes(-5)),
+            new(
+                "upload-orphan-2",
+                "search-chunks",
+                "upload-orphan-2/chunks.jsonl",
+                "OrphanedTerminal",
+                "NoIngestionJobAfterMaxAttempts",
+                5,
+                DateTimeOffset.UtcNow.AddHours(-30))
+        };
+
+        var sweepService = new Mock<IOrphanedArtifactSweepService>();
+        sweepService
+            .Setup(service => service.ListOrphansAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), orphanedArtifactSweepService: sweepService.Object);
+
+        var result = await sut.GetOrphanedArtifactsAsync(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        var payload = ok.Value.Should().BeAssignableTo<IReadOnlyList<OrphanedArtifactDto>>().Subject;
+        payload.Should().HaveCount(2);
+        payload.Should().Contain(orphan =>
+            orphan.State == "Orphaned"
+            && orphan.OrphanReason == "NoIngestionJob"
+            && orphan.OrphanAttempts == 1
+            && orphan.OrphanFirstDetectedUtc != null);
+        payload.Should().Contain(orphan =>
+            orphan.State == "OrphanedTerminal"
+            && orphan.OrphanReason == "NoIngestionJobAfterMaxAttempts"
+            && orphan.OrphanAttempts == 5
+            && orphan.OrphanFirstDetectedUtc != null);
+    }
+
+    [Fact]
+    public async Task GetOrphanedArtifactsAsync_WhenNoOrphansExist_ReturnsOkWithEmptyCollection()
+    {
+        var sweepService = new Mock<IOrphanedArtifactSweepService>();
+        sweepService
+            .Setup(service => service.ListOrphansAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), orphanedArtifactSweepService: sweepService.Object);
+
+        var result = await sut.GetOrphanedArtifactsAsync(CancellationToken.None);
+
+        var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeAssignableTo<IReadOnlyList<OrphanedArtifactDto>>().Subject.Should().BeEmpty();
+    }
+
+    // === POST /api/ingestion/artifacts/orphaned/sweep (T17 / D15) ===
+    //
+    // The sweep runs synchronously and its result is returned in the same response — no background
+    // queueing. This is safe alongside OrphanedArtifactSweepBackgroundService's periodic loop because
+    // both share the SemaphoreSlim(1,1) serialization already implemented per D11.
+
+    [Fact]
+    public async Task TriggerOrphanSweepAsync_ReturnsAcceptedWithSweepCounts()
+    {
+        var expected = new OrphanSweepResultDto(
+            OrphansFound: 4,
+            Healed: 2,
+            AttemptsIncremented: 1,
+            TerminalTransitions: 1,
+            Errored: 0);
+
+        var sweepService = new Mock<IOrphanedArtifactSweepService>();
+        sweepService
+            .Setup(service => service.RunSweepAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var sut = CreateController(Mock.Of<IBlobStorageService>(), orphanedArtifactSweepService: sweepService.Object);
+
+        var result = await sut.TriggerOrphanSweepAsync(CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(expected);
+        sweepService.Verify(service => service.RunSweepAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // === POST /api/ingestion/artifacts/orphaned/{uploadId}/adopt (T17 / D15) ===
+    //
+    // Assumes a new request DTO MotorcycleRAG.Contracts.Models.DTOs.Ingestion.OrphanAdoptRequest with a
+    // single required member `Guid IngestionJobId` (mirroring the ManualMetadataSubmitRequest /
+    // GraphImportStartRequest placement convention for this controller's request bodies). Because
+    // IngestionJobId is modeled as a non-nullable Guid, "malformed" and "absent" JSON both bind to
+    // default(Guid) == Guid.Empty before the action runs, so at this controller-unit-test level
+    // malformed/absent/Guid.Empty collapse onto the same request.IngestionJobId == Guid.Empty guard.
+    // Full end-to-end model-binding coverage of literally malformed JSON belongs to an integration test,
+    // not this unit-test layer.
+    //
+    // Resolution order pinned by these tests (D1 anchor-satisfiability guard, third call site after the
+    // upload path and the sweep):
+    //   1. request is null, or request.IngestionJobId == Guid.Empty -> 400, coordinator AND job repository
+    //      are never touched (Guid.Empty needs no DB round-trip to know it is invalid).
+    //   2. the supplied ingestionJobId does not resolve via IIngestionJobRepository.GetByIdAsync -> 400,
+    //      coordinator never touched.
+    //   3. uploadId does not match any entry from IOrphanedArtifactSweepService.ListOrphansAsync -> 404.
+    //   4. otherwise: download the blob, generate a fresh indexedArtifactId, call
+    //      ISearchChunkIndexingCoordinator.IndexAsync with the resolved job, return 202 with the outcome.
+
+    [Fact]
+    public async Task AdoptOrphanedArtifactAsync_WithValidJobId_ReturnsAcceptedAndDrivesCoordinatorWithThatJob()
+    {
+        var uploadId = "orphan-upload-1";
+        var jobId = Guid.NewGuid();
+        var orphan = new OrphanedArtifactDto(
+            uploadId,
+            "search-chunks",
+            $"{uploadId}/chunks.jsonl",
+            "OrphanedTerminal",
+            "NoIngestionJobAfterMaxAttempts",
+            5,
+            DateTimeOffset.UtcNow.AddHours(-30));
+
+        var job = CreateRehydratedJob(jobId, uploadId);
+
+        var expectedOutcome = new SearchChunkIndexingOutcomeDto(
+            IndexedArtifactId: Guid.NewGuid(),
+            IngestionJobId: jobId,
+            Succeeded: true,
+            ExpectedChunkCount: 10,
+            IndexedChunkCount: 10,
+            FailedChunkCount: 0,
+            ArtifactState: IndexedArtifactState.Completed,
+            JobTransitionedToTerminal: true,
+            FailureReason: null);
+
+        var sweepService = new Mock<IOrphanedArtifactSweepService>();
+        sweepService
+            .Setup(service => service.ListOrphansAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([orphan]);
+
+        var jobRepository = new Mock<IIngestionJobRepository>();
+        jobRepository
+            .Setup(repository => repository.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        await using var blobStream = new MemoryStream("chunk-content"u8.ToArray());
+        var blobStorage = new Mock<IBlobStorageService>();
+        blobStorage
+            .Setup(service => service.DownloadAsync("search-chunks", orphan.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blobStream);
+
+        var coordinator = new Mock<ISearchChunkIndexingCoordinator>();
+        coordinator
+            .Setup(service => service.IndexAsync(
+                It.IsAny<Stream>(),
+                uploadId,
+                "search-chunks",
+                orphan.BlobPath,
+                It.IsAny<Guid>(),
+                It.Is<IngestionJob>(candidate => candidate.IngestionJobId == jobId),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedOutcome);
+
+        var sut = CreateController(
+            blobStorage.Object,
+            orphanedArtifactSweepService: sweepService.Object,
+            searchChunkIndexingCoordinator: coordinator.Object,
+            ingestionJobRepository: jobRepository.Object);
+
+        var result = await sut.AdoptOrphanedArtifactAsync(
+            uploadId,
+            new OrphanAdoptRequest { IngestionJobId = jobId },
+            CancellationToken.None);
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(expectedOutcome);
+
+        coordinator.Verify(service => service.IndexAsync(
+            It.IsAny<Stream>(),
+            uploadId,
+            "search-chunks",
+            orphan.BlobPath,
+            It.IsAny<Guid>(),
+            It.Is<IngestionJob>(candidate => candidate.IngestionJobId == jobId),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AdoptOrphanedArtifactAsync_WhenIndexingThrows_Returns500AdoptionFailedProblemDetails()
+    {
+        var uploadId = "orphan-upload-indexing-failure";
+        var jobId = Guid.NewGuid();
+        var orphan = new OrphanedArtifactDto(
+            uploadId,
+            "search-chunks",
+            $"{uploadId}/chunks.jsonl",
+            "OrphanedTerminal",
+            "NoIngestionJobAfterMaxAttempts",
+            5,
+            DateTimeOffset.UtcNow.AddHours(-30));
+
+        var job = CreateRehydratedJob(jobId, uploadId);
+
+        var sweepService = new Mock<IOrphanedArtifactSweepService>();
+        sweepService
+            .Setup(service => service.ListOrphansAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([orphan]);
+
+        var jobRepository = new Mock<IIngestionJobRepository>();
+        jobRepository
+            .Setup(repository => repository.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        await using var blobStream = new MemoryStream("chunk-content"u8.ToArray());
+        var blobStorage = new Mock<IBlobStorageService>();
+        blobStorage
+            .Setup(service => service.DownloadAsync("search-chunks", orphan.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(blobStream);
+
+        var coordinator = new Mock<ISearchChunkIndexingCoordinator>();
+        coordinator
+            .Setup(service => service.IndexAsync(
+                It.IsAny<Stream>(),
+                uploadId,
+                "search-chunks",
+                orphan.BlobPath,
+                It.IsAny<Guid>(),
+                It.Is<IngestionJob>(candidate => candidate.IngestionJobId == jobId),
+                It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("indexing failed"));
+
+        var sut = CreateController(
+            blobStorage.Object,
+            orphanedArtifactSweepService: sweepService.Object,
+            searchChunkIndexingCoordinator: coordinator.Object,
+            ingestionJobRepository: jobRepository.Object);
+
+        var result = await sut.AdoptOrphanedArtifactAsync(
+            uploadId,
+            new OrphanAdoptRequest { IngestionJobId = jobId },
+            CancellationToken.None);
+
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status500InternalServerError);
+        objectResult.Value.Should().BeOfType<ProblemDetails>().Which.Title.Should().Be("Adoption failed");
+    }
+
+    [Fact]
+    public async Task AdoptOrphanedArtifactAsync_WhenOrphanNotFound_ReturnsNotFoundWithoutCallingCoordinator()
+    {
+        var jobId = Guid.NewGuid();
+        var job = CreateRehydratedJob(jobId, "some-upload");
+
+        var sweepService = new Mock<IOrphanedArtifactSweepService>();
+        sweepService
+            .Setup(service => service.ListOrphansAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var jobRepository = new Mock<IIngestionJobRepository>();
+        jobRepository
+            .Setup(repository => repository.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(job);
+
+        var coordinator = new Mock<ISearchChunkIndexingCoordinator>();
+
+        var sut = CreateController(
+            Mock.Of<IBlobStorageService>(),
+            orphanedArtifactSweepService: sweepService.Object,
+            ingestionJobRepository: jobRepository.Object,
+            searchChunkIndexingCoordinator: coordinator.Object);
+
+        var result = await sut.AdoptOrphanedArtifactAsync(
+            "unknown-upload",
+            new OrphanAdoptRequest { IngestionJobId = jobId },
+            CancellationToken.None);
+
+        var notFound = result.Should().BeOfType<NotFoundObjectResult>().Subject;
+        notFound.Value.Should().BeOfType<ProblemDetails>().Which.Status.Should().Be(StatusCodes.Status404NotFound);
+
+        VerifyCoordinatorNeverInvoked(coordinator);
+    }
+
+    [Fact]
+    public async Task AdoptOrphanedArtifactAsync_WhenRequestBodyIsNull_ReturnsBadRequestWithoutCallingCoordinator()
+    {
+        var coordinator = new Mock<ISearchChunkIndexingCoordinator>();
+        var jobRepository = new Mock<IIngestionJobRepository>();
+
+        var sut = CreateController(
+            Mock.Of<IBlobStorageService>(),
+            searchChunkIndexingCoordinator: coordinator.Object,
+            ingestionJobRepository: jobRepository.Object);
+
+        var result = await sut.AdoptOrphanedArtifactAsync("upload-1", null, CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().BeOfType<ProblemDetails>().Which.Status.Should().Be(StatusCodes.Status400BadRequest);
+
+        VerifyCoordinatorNeverInvoked(coordinator);
+        jobRepository.Verify(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AdoptOrphanedArtifactAsync_WhenIngestionJobIdIsGuidEmpty_ReturnsBadRequestWithoutCallingCoordinator()
+    {
+        // D1-at-a-third-call-site (plan §1/D1, D15): adopt is the third indexing call site — after the
+        // upload path and the sweep — that must never let an anchor-unsatisfiable Guid.Empty reach
+        // ISearchChunkIndexingCoordinator.IndexAsync. This is the critical regression test for that guard.
+        var coordinator = new Mock<ISearchChunkIndexingCoordinator>();
+        var jobRepository = new Mock<IIngestionJobRepository>();
+
+        var sut = CreateController(
+            Mock.Of<IBlobStorageService>(),
+            searchChunkIndexingCoordinator: coordinator.Object,
+            ingestionJobRepository: jobRepository.Object);
+
+        var result = await sut.AdoptOrphanedArtifactAsync(
+            "upload-1",
+            new OrphanAdoptRequest { IngestionJobId = Guid.Empty },
+            CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().BeOfType<ProblemDetails>().Which.Status.Should().Be(StatusCodes.Status400BadRequest);
+
+        VerifyCoordinatorNeverInvoked(coordinator);
+        // Guid.Empty is rejected before any job-resolution round-trip is attempted.
+        jobRepository.Verify(repository => repository.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AdoptOrphanedArtifactAsync_WhenIngestionJobIdDoesNotResolve_ReturnsBadRequestWithoutCallingCoordinator()
+    {
+        var jobId = Guid.NewGuid();
+        var jobRepository = new Mock<IIngestionJobRepository>();
+        jobRepository
+            .Setup(repository => repository.GetByIdAsync(jobId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IngestionJob?)null);
+
+        var coordinator = new Mock<ISearchChunkIndexingCoordinator>();
+
+        var sut = CreateController(
+            Mock.Of<IBlobStorageService>(),
+            searchChunkIndexingCoordinator: coordinator.Object,
+            ingestionJobRepository: jobRepository.Object);
+
+        var result = await sut.AdoptOrphanedArtifactAsync(
+            "upload-1",
+            new OrphanAdoptRequest { IngestionJobId = jobId },
+            CancellationToken.None);
+
+        var badRequest = result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        badRequest.Value.Should().BeOfType<ProblemDetails>().Which.Status.Should().Be(StatusCodes.Status400BadRequest);
+
+        VerifyCoordinatorNeverInvoked(coordinator);
+    }
+
+    // === mcr-api-admin authorization (all three new orphan endpoints) ===
+
+    [Fact]
+    public void IngestionJobsController_RequiresMcrApiAdminPolicy()
+    {
+        // Pins the class-level [Authorize(Policy = "mcr-api-admin")] that every action on this
+        // controller inherits, including the three new orphan endpoints below.
+        var authorizeAttribute = typeof(IngestionJobsController)
+            .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
+            .Cast<AuthorizeAttribute>()
+            .SingleOrDefault();
+
+        authorizeAttribute.Should().NotBeNull();
+        authorizeAttribute!.Policy.Should().Be("mcr-api-admin");
+    }
+
+    // Deliberately plain string literals rather than nameof(IngestionJobsController.XAsync): during the
+    // RED phase these methods do not exist yet, and an unresolvable nameof target inside an attribute
+    // argument is a compile-time-constant failure that stops the compiler from reporting the rest of this
+    // file's diagnostics. Once T17 adds the methods, either form works; nameof is preferred going forward.
+    [Theory]
+    [InlineData("GetOrphanedArtifactsAsync")]
+    [InlineData("TriggerOrphanSweepAsync")]
+    [InlineData("AdoptOrphanedArtifactAsync")]
+    public void OrphanEndpoints_DoNotOverrideOrBypassClassLevelAdminAuthorization(string methodName)
+    {
+        var method = typeof(IngestionJobsController).GetMethod(methodName);
+
+        method.Should().NotBeNull($"the T17 controller must expose {methodName}");
+        method!.GetCustomAttributes(typeof(AllowAnonymousAttribute), inherit: false).Should().BeEmpty();
+        method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false).Should().BeEmpty(
+            "no per-method policy should shadow the stricter class-level mcr-api-admin policy");
+    }
+
+    private static void VerifyCoordinatorNeverInvoked(Mock<ISearchChunkIndexingCoordinator> coordinator) =>
+        coordinator.Verify(service => service.IndexAsync(
+            It.IsAny<Stream>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
+            It.IsAny<Guid>(),
+            It.IsAny<IngestionJob>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+
+    private static IngestionJob CreateRehydratedJob(Guid jobId, string uploadId) =>
+        IngestionJob.Rehydrate(
+            id: 0,
+            ingestionJobId: jobId,
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Queued,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: uploadId,
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: null,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
+
     [Fact]
     public void Constructor_RejectsEachRequiredDependency()
     {
@@ -1118,15 +1575,21 @@ public sealed class IngestionJobsControllerTests
         var blobOptions = Options.Create(new BlobStorageOptions());
         var ingestionOptions = Options.Create(new IngestionOptions());
         var reprocess = Mock.Of<IChunkReprocessService>();
+        var sweep = Mock.Of<IOrphanedArtifactSweepService>();
+        var coordinator = Mock.Of<ISearchChunkIndexingCoordinator>();
+        var jobRepository = Mock.Of<IIngestionJobRepository>();
         var logger = NullLogger<IngestionJobsController>.Instance;
 
-        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(null!, validator, storage, blobOptions, ingestionOptions, reprocess, logger));
-        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, null!, storage, blobOptions, ingestionOptions, reprocess, logger));
-        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, null!, blobOptions, ingestionOptions, reprocess, logger));
-        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, null!, ingestionOptions, reprocess, logger));
-        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, null!, reprocess, logger));
-        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, null!, logger));
-        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, null!));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(null!, validator, storage, blobOptions, ingestionOptions, reprocess, sweep, coordinator, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, null!, storage, blobOptions, ingestionOptions, reprocess, sweep, coordinator, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, null!, blobOptions, ingestionOptions, reprocess, sweep, coordinator, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, null!, ingestionOptions, reprocess, sweep, coordinator, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, null!, reprocess, sweep, coordinator, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, null!, sweep, coordinator, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, null!, coordinator, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, sweep, null!, jobRepository, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, sweep, coordinator, null!, logger));
+        Assert.Throws<ArgumentNullException>(() => new IngestionJobsController(service, validator, storage, blobOptions, ingestionOptions, reprocess, sweep, coordinator, jobRepository, null!));
     }
 
     [Fact]
@@ -1190,7 +1653,10 @@ public sealed class IngestionJobsControllerTests
         IBlobStorageService blobStorageService,
         IIngestionJobService? ingestionJobService = null,
         IngestionOptions? ingestionOptions = null,
-        IChunkReprocessService? reprocessService = null)
+        IChunkReprocessService? reprocessService = null,
+        IOrphanedArtifactSweepService? orphanedArtifactSweepService = null,
+        ISearchChunkIndexingCoordinator? searchChunkIndexingCoordinator = null,
+        IIngestionJobRepository? ingestionJobRepository = null)
     {
         var controller = new IngestionJobsController(
             ingestionJobService ?? Mock.Of<IIngestionJobService>(),
@@ -1206,6 +1672,9 @@ public sealed class IngestionJobsControllerTests
                 MaxInputBytes = 2_000_000_000L
             }),
             reprocessService ?? Mock.Of<IChunkReprocessService>(),
+            orphanedArtifactSweepService ?? Mock.Of<IOrphanedArtifactSweepService>(),
+            searchChunkIndexingCoordinator ?? Mock.Of<ISearchChunkIndexingCoordinator>(),
+            ingestionJobRepository ?? Mock.Of<IIngestionJobRepository>(),
             NullLogger<IngestionJobsController>.Instance);
 
         controller.ControllerContext = new ControllerContext {

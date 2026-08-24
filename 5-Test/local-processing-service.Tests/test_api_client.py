@@ -352,6 +352,164 @@ async def test_upload_artifact_uses_reduced_timeout_and_two_attempts(monkeypatch
     ]
 
 
+async def test_upload_artifact_logs_warning_when_202_body_status_is_not_stored(
+    monkeypatch, caplog
+):
+    """T5: a 202 whose body ``status`` is not ``stored`` (e.g. the API's
+    ``stored-not-indexed`` when no ingestion job was found) must be logged at
+    warning level naming the uploadId and the returned status, without
+    raising and without retrying — the artifact upload itself did succeed."""
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    caplog.set_level(logging.WARNING, logger="api.api_client")
+
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    upload_id = "12345678-1234-1234-1234-123456789012"
+
+    class NotIndexedAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, *, headers=None, files=None, params=None):
+            return httpx.Response(
+                202,
+                json={"status": "stored-not-indexed", "uploadId": upload_id},
+                request=httpx.Request("POST", url),
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch(
+        "api.api_client.httpx.AsyncClient", return_value=NotIndexedAsyncClient()
+    ) as mock_ctor:
+        await client.upload_artifact(
+            b"{}", upload_id, "search-chunks", "application/x-ndjson"
+        )
+
+    # No retry: the HTTP upload itself succeeded, so a single attempt suffices.
+    assert mock_ctor.call_count == 1
+
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelname == "WARNING"
+    ]
+    assert any(
+        upload_id in message and "stored-not-indexed" in message
+        for message in warnings
+    ), f"expected a WARNING naming the uploadId and returned status; got {warnings!r}"
+
+
+async def test_upload_artifact_does_not_warn_when_202_body_status_is_stored(
+    monkeypatch, caplog
+):
+    """T5 regression guard: the happy-path body ``status: stored`` must not
+    trip the new not-indexed warning, and behaves exactly as today."""
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    caplog.set_level(logging.WARNING, logger="api.api_client")
+
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    upload_id = "12345678-1234-1234-1234-123456789012"
+
+    class StoredAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, *, headers=None, files=None, params=None):
+            return httpx.Response(
+                202,
+                json={"status": "stored", "uploadId": upload_id},
+                request=httpx.Request("POST", url),
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch(
+        "api.api_client.httpx.AsyncClient", return_value=StoredAsyncClient()
+    ) as mock_ctor:
+        await client.upload_artifact(
+            b"{}", upload_id, "search-chunks", "application/x-ndjson"
+        )
+
+    assert mock_ctor.call_count == 1
+
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelname == "WARNING"
+    ]
+    assert warnings == []
+
+
+async def test_upload_artifact_handles_202_with_non_dict_json_body(
+    monkeypatch, caplog
+):
+    """T5 edge case: a 202 whose response body is valid JSON but not a dict
+    (e.g., a bare list, string, or number) must not raise AttributeError,
+    must not log a warning, and must still return successfully — the HTTP
+    upload itself did succeed."""
+    monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
+    caplog.set_level(logging.WARNING, logger="api.api_client")
+
+    mock_msal = MagicMock()
+    mock_msal.acquire_token_for_client.return_value = {"access_token": "token"}
+
+    upload_id = "12345678-1234-1234-1234-123456789012"
+
+    class NonDictBodyAsyncClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def post(self, url, *, headers=None, files=None, params=None):
+            # Return a 202 with a JSON body that is a list, not a dict
+            return httpx.Response(
+                202,
+                content=b'["item1", "item2"]',
+                request=httpx.Request("POST", url),
+            )
+
+    with patch(
+        "api.api_client.msal.ConfidentialClientApplication", return_value=mock_msal
+    ):
+        client = ApiClient()
+
+    with patch(
+        "api.api_client.httpx.AsyncClient", return_value=NonDictBodyAsyncClient()
+    ) as mock_ctor:
+        # Should not raise AttributeError even though body.get() is called on a list
+        await client.upload_artifact(
+            b"{}", upload_id, "search-chunks", "application/x-ndjson"
+        )
+
+    assert mock_ctor.call_count == 1
+
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.levelname == "WARNING"
+    ]
+    # No warning should be logged for a non-dict body (it's not a status signal)
+    assert warnings == []
+
+
 def test_get_token_returns_access_token_and_translates_msal_error(monkeypatch):
     monkeypatch.setenv("PYTHON_UPLOAD_JOB_SECRET", "secret")
     mock_msal = MagicMock()

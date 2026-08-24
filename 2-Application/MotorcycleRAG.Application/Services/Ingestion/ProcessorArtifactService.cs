@@ -1,13 +1,12 @@
-using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 using MotorcycleRAG.Core.Options;
 using MotorcycleRAG.Core.Utilities;
 using MotorcycleRAG.Domain.Entities;
 using MotorcycleRAG.Domain.Enums;
-using MotorcycleRAG.Contracts.Models.DTOs.Ingestion;
 
 namespace MotorcycleRAG.Application.Services.Ingestion;
 
@@ -16,12 +15,37 @@ namespace MotorcycleRAG.Application.Services.Ingestion;
 /// </summary>
 public sealed class ProcessorArtifactService : IProcessorArtifactService
 {
+    /// <summary>Stable EventId for the "no ingestion job found" anchor-unsatisfiable condition (D6).</summary>
+    private static readonly EventId NoIngestionJobFoundEventId = new(1001, "NoIngestionJobFound");
+
+    /// <summary>Stable EventId for the "ingestion job ID is empty" anchor-unsatisfiable condition (D6).</summary>
+    private static readonly EventId IngestionJobIdEmptyEventId = new(1002, "IngestionJobIdEmpty");
+
+    /// <summary>Metadata key names and values for blob storage (plan D5: orphan state machine).</summary>
+    internal static class BlobMetadata
+    {
+        public const string State = "state";
+        public const string OrphanReason = "orphanReason";
+        public const string OrphanAttempts = "orphanAttempts";
+        public const string OrphanFirstDetectedUtc = "orphanFirstDetectedUtc";
+        public const string DateLastProcessed = "dateLastProcessed";
+
+        public const string OrphanState = "Orphaned";
+        public const string OrphanedTerminalState = "OrphanedTerminal";
+        public const string NoJobOrphanReason = "NoIngestionJob";
+        public const string ZeroAttemptsValue = "0";
+    }
+
+    /// <summary>Container and path constants for search-chunks artifacts.</summary>
+    internal static class SearchChunksArtifact
+    {
+        public const string ContainerName = "search-chunks";
+    }
+
     private readonly IBlobStorageService _blobStorageService;
     private readonly BlobStorageOptions _blobStorageOptions;
-    private readonly IChunkIndexingService _chunkIndexingService;
+    private readonly ISearchChunkIndexingCoordinator _searchChunkIndexingCoordinator;
     private readonly IIngestionJobRepository _jobRepository;
-    private readonly IIndexedArtifactRepository _artifactRepository;
-    private readonly IIndexedChunkRepository _chunkRepository;
     private readonly IIngestionSourceAccessTokenService _sourceAccessTokenService;
     private readonly IIngestionJobService _ingestionJobService;
     private readonly ILogger<ProcessorArtifactService> _logger;
@@ -29,20 +53,16 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
     public ProcessorArtifactService(
         IBlobStorageService blobStorageService,
         IOptions<BlobStorageOptions> blobStorageOptions,
-        IChunkIndexingService chunkIndexingService,
+        ISearchChunkIndexingCoordinator searchChunkIndexingCoordinator,
         IIngestionJobRepository jobRepository,
-        IIndexedArtifactRepository artifactRepository,
-        IIndexedChunkRepository chunkRepository,
         IIngestionSourceAccessTokenService sourceAccessTokenService,
         IIngestionJobService ingestionJobService,
         ILogger<ProcessorArtifactService> logger)
     {
         _blobStorageService = blobStorageService ?? throw new ArgumentNullException(nameof(blobStorageService));
         _blobStorageOptions = blobStorageOptions?.Value ?? throw new ArgumentNullException(nameof(blobStorageOptions));
-        _chunkIndexingService = chunkIndexingService ?? throw new ArgumentNullException(nameof(chunkIndexingService));
+        _searchChunkIndexingCoordinator = searchChunkIndexingCoordinator ?? throw new ArgumentNullException(nameof(searchChunkIndexingCoordinator));
         _jobRepository = jobRepository ?? throw new ArgumentNullException(nameof(jobRepository));
-        _artifactRepository = artifactRepository ?? throw new ArgumentNullException(nameof(artifactRepository));
-        _chunkRepository = chunkRepository ?? throw new ArgumentNullException(nameof(chunkRepository));
         _sourceAccessTokenService = sourceAccessTokenService ?? throw new ArgumentNullException(nameof(sourceAccessTokenService));
         _ingestionJobService = ingestionJobService ?? throw new ArgumentNullException(nameof(ingestionJobService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -125,6 +145,9 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
             LogSanitizer.Sanitize(request.UploadId),  // codeql[cs/log-forging]
             LogSanitizer.Sanitize(request.ArtifactType));  // codeql[cs/log-forging]
 
+        ProcessorArtifactOperationStatus resultStatus = ProcessorArtifactOperationStatus.Success;
+        string responseStatus = "stored";
+
         if (string.Equals(request.ArtifactType, "search-chunks", StringComparison.OrdinalIgnoreCase))
         {
             if (!request.Content.CanSeek)
@@ -133,7 +156,12 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
             }
 
             request.Content.Position = 0;
-            await ProcessSearchChunksAsync(request.UploadId, container, blobPath, request.Content, cancellationToken).ConfigureAwait(false);
+            bool indexingWasSkipped = await ProcessSearchChunksAsync(request.UploadId, container, blobPath, request.Content, cancellationToken).ConfigureAwait(false);
+            if (indexingWasSkipped)
+            {
+                resultStatus = ProcessorArtifactOperationStatus.IndexingSkipped;
+                responseStatus = "stored-not-indexed";
+            }
         }
 
         return new(
@@ -142,9 +170,9 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
                 UploadId = request.UploadId,
                 ArtifactType = request.ArtifactType,
                 BlobPath = blobPath,
-                Status = "stored"
+                Status = responseStatus
             },
-            ProcessorArtifactOperationStatus.Success);
+            resultStatus);
     }
 
     /// <inheritdoc />
@@ -172,59 +200,19 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         return _ingestionJobService.TransitionStageAsync(jobId, request, cancellationToken);
     }
 
-    private async Task ProcessSearchChunksAsync(string uploadId, string container, string blobPath, Stream buffer, CancellationToken cancellationToken)
+    private async Task<bool> ProcessSearchChunksAsync(string uploadId, string container, string blobPath, Stream buffer, CancellationToken cancellationToken)
     {
-        var stopwatch = Stopwatch.StartNew();
-        try
+        var now = DateTimeOffset.UtcNow;
+
+        // Plan D3: Resolve indexedArtifactId, ingestionJobId BEFORE calling the coordinator
+        var indexedArtifactId = Guid.NewGuid();
+        var job = await FindLatestSearchChunkJobAsync(uploadId, cancellationToken).ConfigureAwait(false);
+
+        if (job is null)
         {
-            var now = DateTimeOffset.UtcNow;
-            var result = await _chunkIndexingService.IndexFromJsonlAsync(buffer, uploadId, cancellationToken).ConfigureAwait(false);
-            var expected = result.TotalParsed;
-            var indexed = result.Outcomes.Count(static outcome => outcome.Succeeded);
-            var failed = result.Outcomes.Count(static outcome => !outcome.Succeeded);
-            var artifactState = ComputeArtifactState(indexed, expected);
-            var job = await FindLatestSearchChunkJobAsync(uploadId, cancellationToken).ConfigureAwait(false);
+            _logger.LogError(NoIngestionJobFoundEventId, "No ingestion job found for uploadId {UploadId}. Skipping chunk indexing. Artifact is stored in blob.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
 
-            if (job is null)
-            {
-                _logger.LogWarning("No ingestion job found for uploadId {UploadId}. Skipping catalog write. Artifact is stored in blob.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
-            }
-            else
-            {
-                var artifact = new IndexedArtifactDto
-                {
-                    IndexedArtifactId = Guid.NewGuid(),
-                    IngestionJobId = job.IngestionJobId,
-                    UploadId = uploadId,
-                    ArtifactType = "search-chunks",
-                    BlobContainer = container,
-                    BlobPath = blobPath,
-                    State = artifactState,
-                    ExpectedChunkCount = expected,
-                    IndexedChunkCount = indexed,
-                    FailedChunkCount = failed,
-                    LastProcessedAtUtc = now,
-                    FailureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null,
-                    CreatedAtUtc = now
-                };
-
-                await _artifactRepository.UpsertAsync(artifact, cancellationToken).ConfigureAwait(false);
-                await _chunkRepository.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, cancellationToken).ConfigureAwait(false);
-                var indexedChunks = ConvertToIndexedChunks(result.Outcomes, artifact.IndexedArtifactId, job.IngestionJobId, uploadId, now);
-                if (indexedChunks.Count > 0)
-                {
-                    await _chunkRepository.UpsertManyAsync(indexedChunks, cancellationToken).ConfigureAwait(false);
-                }
-
-                var failureReason = failed > 0 ? $"Failed to index {failed} chunk(s)" : null;
-                var terminalStatus = MapArtifactStateToJobStatus(artifactState);
-                var transitioned = await TryTransitionSearchChunkJobToTerminalAsync(job.IngestionJobId, terminalStatus, expected, indexed, failureReason, cancellationToken).ConfigureAwait(false);
-                _logger.LogInformation(
-                    "Search chunk indexing terminal outcome: JobId={JobId}, Outcome={Outcome}, Transitioned={Transitioned}, Expected={ExpectedCount}, Indexed={IndexedCount}, Failed={FailedCount}, Batches={BatchCount}, DurationMs={DurationMs}, FailureReason={FailureReason}.",
-                    job.IngestionJobId, terminalStatus, transitioned, expected, indexed, failed, result.BatchCount, stopwatch.ElapsedMilliseconds,
-                    failureReason is null ? string.Empty : failureReason);
-            }
-
+            // Stamp the artifact as orphaned since no job exists to anchor it (D5)
             try
             {
                 await _blobStorageService.SetMetadataAsync(
@@ -232,8 +220,11 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
                     blobPath,
                     new Dictionary<string, string>
                     {
-                        ["state"] = artifactState.ToString(),
-                        ["dateLastProcessed"] = now.UtcDateTime.ToString("O")
+                        [BlobMetadata.State] = BlobMetadata.OrphanState,
+                        [BlobMetadata.OrphanReason] = BlobMetadata.NoJobOrphanReason,
+                        [BlobMetadata.OrphanAttempts] = BlobMetadata.ZeroAttemptsValue,
+                        [BlobMetadata.OrphanFirstDetectedUtc] = now.UtcDateTime.ToString("O"),
+                        [BlobMetadata.DateLastProcessed] = now.UtcDateTime.ToString("O")
                     },
                     cancellationToken).ConfigureAwait(false);
             }
@@ -241,37 +232,21 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
             {
                 _logger.LogError(metadataException, "Best-effort blob metadata update failed for {UploadId}. Continuing.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
             }
-        }
-        catch (Exception indexingException)
-        {
-            stopwatch.Stop();
-            _logger.LogError(indexingException, "Chunk indexing into Azure AI Search failed for upload {UploadId} after {DurationMs}ms. Artifact is stored in blob.", LogSanitizer.Sanitize(uploadId), stopwatch.ElapsedMilliseconds);  // codeql[cs/log-forging]
-            await TryFailSearchChunkJobAsync(uploadId, indexingException, cancellationToken).ConfigureAwait(false);
-        }
-    }
 
-    private async Task TryFailSearchChunkJobAsync(string uploadId, Exception failure, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var job = await FindLatestSearchChunkJobAsync(uploadId, cancellationToken).ConfigureAwait(false);
-            if (job is null)
-            {
-                return;
-            }
+            return true;  // Indexing was skipped
+        }
 
-            await TryTransitionSearchChunkJobToTerminalAsync(
-                job.IngestionJobId,
-                IngestionJobStatus.Failed,
-                expectedChunkCount: 0,
-                indexedChunkCount: 0,
-                failureReason: BuildIndexingFailureReason(failure),
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception transitionException)
+        // Validate that the resolved IDs are not Guid.Empty (a logic error, never legitimate)
+        if (job.IngestionJobId == Guid.Empty)
         {
-            _logger.LogError(transitionException, "Failed to transition ingestion job to Failed for upload {UploadId}. The artifact is stored in blob.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
+            _logger.LogError(IngestionJobIdEmptyEventId, "Resolved ingestionJobId is Guid.Empty. This is a bug. Skipping chunk indexing for upload {UploadId}.", LogSanitizer.Sanitize(uploadId));  // codeql[cs/log-forging]
+            return true;  // Indexing was skipped
         }
+
+        // Delegate to the coordinator for all post-job-resolution indexing logic
+        await _searchChunkIndexingCoordinator.IndexAsync(buffer, uploadId, container, blobPath, indexedArtifactId, job, cancellationToken).ConfigureAwait(false);
+
+        return false;  // Indexing was not skipped (handled by coordinator)
     }
 
     private async Task<IngestionJob?> FindLatestSearchChunkJobAsync(string uploadId, CancellationToken cancellationToken)
@@ -289,30 +264,11 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         return candidates.OrderByDescending(static job => job.CreatedAtUtc).FirstOrDefault();
     }
 
-    private async Task<bool> TryTransitionSearchChunkJobToTerminalAsync(
-        Guid jobId,
-        IngestionJobStatus terminalStatus,
-        int expectedChunkCount,
-        int indexedChunkCount,
-        string? failureReason,
-        CancellationToken cancellationToken)
-    {
-        foreach (var activeStatus in new[] { IngestionJobStatus.Indexing, IngestionJobStatus.Processing, IngestionJobStatus.Queued })
-        {
-            if (await _jobRepository.TryTransitionToTerminalAsync(jobId, activeStatus, terminalStatus, expectedChunkCount, indexedChunkCount, failureReason, cancellationToken).ConfigureAwait(false))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private static bool TryGetArtifactLocation(string uploadId, string artifactType, out string container, out string blobPath)
     {
         if (string.Equals(artifactType, "search-chunks", StringComparison.OrdinalIgnoreCase))
         {
-            container = "search-chunks";
+            container = SearchChunksArtifact.ContainerName;
             blobPath = $"{uploadId}/chunks.jsonl";
             return true;
         }
@@ -347,43 +303,4 @@ public sealed class ProcessorArtifactService : IProcessorArtifactService
         return false;
     }
 
-    private static IndexedArtifactState ComputeArtifactState(int indexed, int expected) =>
-        indexed == expected && expected > 0 ? IndexedArtifactState.Completed :
-        indexed > 0 && indexed < expected ? IndexedArtifactState.PartiallyIndexed :
-        indexed == 0 ? IndexedArtifactState.Failed : IndexedArtifactState.Pending;
-
-    private static IngestionJobStatus MapArtifactStateToJobStatus(IndexedArtifactState state) => state switch
-    {
-        IndexedArtifactState.Completed => IngestionJobStatus.Completed,
-        IndexedArtifactState.PartiallyIndexed => IngestionJobStatus.PartiallyCompleted,
-        IndexedArtifactState.Failed => IngestionJobStatus.Failed,
-        _ => IngestionJobStatus.Queued
-    };
-
-    private static IReadOnlyList<IndexedChunkDto> ConvertToIndexedChunks(
-        IReadOnlyList<ChunkIndexOutcome> outcomes,
-        Guid artifactId,
-        Guid jobId,
-        string uploadId,
-        DateTimeOffset now) => outcomes.Select(outcome => new IndexedChunkDto
-    {
-        ChunkId = outcome.ChunkId,
-        IndexedArtifactId = artifactId,
-        IngestionJobId = jobId,
-        UploadId = uploadId,
-        SourceFileName = outcome.SourceFile,
-        PageNumber = outcome.PageNumber,
-        ChunkIndex = outcome.ChunkIndex,
-        Stage = "index",
-        Status = outcome.Succeeded ? ChunkIndexStatus.Complete : ChunkIndexStatus.Failed,
-        ProcessedAtUtc = now,
-        FailureReason = outcome.FailureReason
-    }).ToList();
-
-    private static string BuildIndexingFailureReason(Exception failure)
-    {
-        const int maxReasonLength = 500;
-        var message = failure.Message.Trim();
-        return $"{failure.GetType().Name}: {(message.Length > maxReasonLength ? message[..maxReasonLength] : message)}";
-    }
 }

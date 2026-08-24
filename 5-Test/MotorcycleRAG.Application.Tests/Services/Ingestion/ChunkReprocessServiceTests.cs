@@ -25,6 +25,7 @@ public class ChunkReprocessServiceTests
     private readonly Mock<IIngestionJobRepository> _jobRepoMock;
     private readonly Mock<IBlobStorageService> _blobStorageMock;
     private readonly Mock<IChunkIndexingService> _indexingMock;
+    private readonly Mock<IManualDocumentRepository> _manualDocumentRepoMock;
     private readonly ChunkReprocessService _sut;
 
     public ChunkReprocessServiceTests()
@@ -34,7 +35,8 @@ public class ChunkReprocessServiceTests
         _jobRepoMock = new Mock<IIngestionJobRepository>();
         _blobStorageMock = new Mock<IBlobStorageService>();
         _indexingMock = new Mock<IChunkIndexingService>();
-        
+        _manualDocumentRepoMock = new Mock<IManualDocumentRepository>();
+
         var blobOptions = Options.Create(new BlobStorageOptions());
         var ingestionOptions = Options.Create(new IngestionOptions());
 
@@ -46,7 +48,8 @@ public class ChunkReprocessServiceTests
             _indexingMock.Object,
             blobOptions,
             ingestionOptions,
-            NullLogger<ChunkReprocessService>.Instance);
+            NullLogger<ChunkReprocessService>.Instance,
+            _manualDocumentRepoMock.Object);
     }
 
     [Fact]
@@ -96,7 +99,7 @@ public class ChunkReprocessServiceTests
             .Setup(x => x.DownloadAsync(successfulArtifact.BlobContainer, successfulArtifact.BlobPath, cts.Token))
             .ReturnsAsync(() => new MemoryStream());
         _indexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), successfulJob.InputRef, cts.Token))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), successfulJob.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string>(), cts.Token))
             .ReturnsAsync(new ChunkIndexingResult(1, 1, [new ChunkIndexOutcome("chunk-1", true, null, 1, 0, "manual.pdf")]));
 
         var result = await _sut.ReprocessAllAsync(cts.Token);
@@ -122,9 +125,9 @@ public class ChunkReprocessServiceTests
         _artifactRepoMock.Setup(x => x.GetByUploadAndTypeAsync(failedJob.InputRef, "search-chunks", It.IsAny<CancellationToken>())).ReturnsAsync(failedArtifact);
         _blobStorageMock.Setup(x => x.ExistsAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
         _blobStorageMock.Setup(x => x.DownloadAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(() => new MemoryStream());
-        _indexingMock.Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), partialJob.InputRef, It.IsAny<CancellationToken>()))
+        _indexingMock.Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), partialJob.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(2, 1, [new ChunkIndexOutcome("one", true, null, 1, 0, "manual.pdf"), new ChunkIndexOutcome("two", false, "failed", 1, 1, "manual.pdf")]));
-        _indexingMock.Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), failedJob.InputRef, It.IsAny<CancellationToken>()))
+        _indexingMock.Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), failedJob.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ChunkIndexingResult(1, 1, [new ChunkIndexOutcome("three", false, "failed", 1, 0, "manual.pdf")]));
 
         var result = await _sut.ReprocessAllNotSucceededAsync();
@@ -246,7 +249,7 @@ public class ChunkReprocessServiceTests
             .Setup(x => x.DownloadAsync(artifact.BlobContainer, artifact.BlobPath, It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => new MemoryStream());
         _indexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("search index unavailable"));
 
         var result = await _sut.ReprocessByJobIdAsync(jobId);
@@ -281,7 +284,7 @@ public class ChunkReprocessServiceTests
         };
         var indexingResult = new ChunkIndexingResult(2, 1, outcomes);
         _indexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(indexingResult);
 
         var result = await _sut.ReprocessByJobIdAsync(jobId);
@@ -325,7 +328,7 @@ public class ChunkReprocessServiceTests
         };
         var indexingResult = new ChunkIndexingResult(2, 1, outcomes);
         _indexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(indexingResult);
 
         var result = await _sut.ReprocessByJobIdAsync(jobId);
@@ -366,7 +369,7 @@ public class ChunkReprocessServiceTests
         };
         var indexingResult = new ChunkIndexingResult(1, 1, outcomes);
         _indexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(indexingResult);
 
         var result = await _sut.ReprocessByJobIdAsync(jobId);
@@ -377,6 +380,242 @@ public class ChunkReprocessServiceTests
         _chunkRepoMock.Verify(x => x.DeleteByArtifactIdAsync(artifact.IndexedArtifactId, It.IsAny<CancellationToken>()), Times.Once);
         _chunkRepoMock.Verify(x => x.UpsertManyAsync(It.IsAny<IReadOnlyCollection<IndexedChunkDto>>(), It.IsAny<CancellationToken>()), Times.Never);
         _jobRepoMock.Verify(x => x.UpdateStatusAsync(jobId, IngestionJobStatus.Failed, "Chunk indexing failed.", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // --- T13 (plan: 2026-08-01-vector-graph-anchor-id-contract, row T13) ---
+    // ReprocessByJobIdAsync calls the sole IndexFromJsonlAsync overload with the real
+    // artifact.IndexedArtifactId and jobId anchors -- both already in scope in that method and already
+    // bound into IndexedChunkDto ~20 lines later -- plus the resolved ManualDocument.SourceContentHash
+    // (null when the job has no ManualDocument -- never string.Empty, per the T8 sibling rule; an empty
+    // string would still overwrite a real hash on Azure AI Search mergeOrUpload, whereas a null/omitted
+    // key leaves it untouched).
+    //
+    // These tests mock IChunkIndexingService directly (the interface, not the concrete
+    // ChunkIndexingService), capturing the arguments actually observed at call time -- not inferred from
+    // the return value. T14 contract closure made IManualDocumentRepository a required constructor
+    // parameter on ChunkReprocessService (was previously optional = null as a T13 test-migration seam),
+    // which is what unblocks the positive-hash test below.
+
+    [Fact]
+    public async Task ReprocessByJobIdAsync_ArtifactAndJobResolve_CallsFiveParameterOverloadWithRealArtifactAndJobIdAnchors()
+    {
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
+        var artifact = CreateArtifact(jobId, job.InputRef);
+        _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+        _artifactRepoMock
+            .Setup(x => x.GetByUploadAndTypeAsync(job.InputRef, "search-chunks", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(artifact);
+        _blobStorageMock
+            .Setup(x => x.ExistsAsync(artifact.BlobContainer, artifact.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _blobStorageMock
+            .Setup(x => x.DownloadAsync(artifact.BlobContainer, artifact.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream());
+
+        var outcomes = new List<ChunkIndexOutcome>
+        {
+            new("chunk-1", true, null, 1, 0, "file.pdf"),
+            new("chunk-2", true, null, 1, 1, "file.pdf")
+        };
+        var indexingResult = new ChunkIndexingResult(2, 1, outcomes);
+
+        // GREEN production code must call the sole (5-parameter) IndexFromJsonlAsync overload, with the
+        // anchors already resolved. Capture the arguments actually observed at call time -- not inferred
+        // from the return value -- per the test-contract row.
+        // (T14 contract closure: the legacy 3-parameter overload referenced by an earlier revision of
+        // this test has been removed entirely; the "exactly one overload" guarantee is now enforced
+        // structurally by IndexFromJsonlAsync_ShouldExposeExactlyOneAnchorParameterOverload_OnInterfaceAndImplementations.)
+        var fiveParameterOverloadInvoked = false;
+        var capturedIndexedArtifactId = Guid.Empty;
+        var capturedIngestionJobId = Guid.Empty;
+        string? capturedSourceContentHash = "unset-sentinel";
+
+        _indexingMock
+            .Setup(x => x.IndexFromJsonlAsync(
+                It.IsAny<Stream>(),
+                job.InputRef,
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Stream, string, Guid, Guid, string, CancellationToken>((_, _, indexedArtifactId, ingestionJobId, sourceContentHash, _) =>
+            {
+                fiveParameterOverloadInvoked = true;
+                capturedIndexedArtifactId = indexedArtifactId;
+                capturedIngestionJobId = ingestionJobId;
+                capturedSourceContentHash = sourceContentHash;
+            })
+            .ReturnsAsync(indexingResult);
+
+        var result = await _sut.ReprocessByJobIdAsync(jobId);
+
+        result.Should().Be(new ReprocessResultDto(1, 1, 0, 0));
+
+        // The heart of the assertion: the sole IndexFromJsonlAsync overload must be invoked, carrying
+        // the real artifact/job anchors -- not left unmigrated on the legacy 3-parameter path, which
+        // is what silently clobbers real anchors on reprocess (see plan §7 null-clobber finding).
+        fiveParameterOverloadInvoked.Should().BeTrue(
+            "ReprocessByJobIdAsync must call the IndexFromJsonlAsync overload (plan T13) with the resolved " +
+            "anchors -- otherwise reprocessed chunks never carry the vector<->graph anchors, and once T8 lands, " +
+            "a reprocess of an already-anchored document would silently wipe those anchors back to null");
+        capturedIndexedArtifactId.Should().Be(artifact.IndexedArtifactId,
+            "the artifact row is re-fetched by uploadId+type before indexing, so its real IndexedArtifactId " +
+            "is already in scope and must be passed, not Guid.Empty");
+        capturedIngestionJobId.Should().Be(jobId,
+            "the jobId parameter is already in scope and is the same value later bound into IndexedChunkDto " +
+            "~20 lines below -- it must be passed here too, not Guid.Empty");
+        capturedSourceContentHash.Should().BeNull(
+            "this job (built via IngestionJob.Create) has no ManualDocumentId, so the resolved hash must be " +
+            "null -- never string.Empty, which mergeOrUpload would still treat as a real value");
+    }
+
+    [Fact]
+    public async Task ReprocessByJobIdAsync_JobHasNoManualDocument_PassesNullSourceContentHash_NeverEmptyString()
+    {
+        var job = CreateJob();
+        var jobId = job.IngestionJobId;
+        var artifact = CreateArtifact(jobId, job.InputRef);
+        _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+        _artifactRepoMock
+            .Setup(x => x.GetByUploadAndTypeAsync(job.InputRef, "search-chunks", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(artifact);
+        _blobStorageMock
+            .Setup(x => x.ExistsAsync(artifact.BlobContainer, artifact.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _blobStorageMock
+            .Setup(x => x.DownloadAsync(artifact.BlobContainer, artifact.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream());
+
+        var outcomes = new List<ChunkIndexOutcome> { new("chunk-1", true, null, 1, 0, "file.pdf") };
+        var indexingResult = new ChunkIndexingResult(1, 1, outcomes);
+
+        string? capturedSourceContentHash = "unset-sentinel";
+        _indexingMock
+            .Setup(x => x.IndexFromJsonlAsync(
+                It.IsAny<Stream>(),
+                job.InputRef,
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Stream, string, Guid, Guid, string, CancellationToken>((_, _, _, _, sourceContentHash, _) =>
+            {
+                capturedSourceContentHash = sourceContentHash;
+            })
+            .ReturnsAsync(indexingResult);
+
+        await _sut.ReprocessByJobIdAsync(jobId);
+
+        // job.ManualDocumentId is null here (IngestionJob.Create always leaves it null for freshly-created
+        // jobs -- e.g. StructuredSpecification/Batch-shaped jobs, or any PDFManual job whose manual link
+        // hasn't been set), so the resolved hash must be an omitted/null value on the outgoing document --
+        // never string.Empty, which mergeOrUpload would still treat as a real value that clobbers any
+        // existing hash already stamped on the indexed document (see plan §7 null-clobber finding, and the
+        // T8 sibling rule this mirrors).
+        capturedSourceContentHash.Should().BeNull(
+            "a job with no ManualDocument must resolve to a null sourceContentHash, not an unresolved sentinel " +
+            "or an empty string -- null is what the T7 JsonIgnore(WhenWritingNull) guard omits from the payload");
+        capturedSourceContentHash.Should().NotBe(string.Empty,
+            "string.Empty is NOT an acceptable substitute for null here -- mergeOrUpload still writes an empty " +
+            "string as a real field value, clobbering any real hash already indexed for this chunk");
+    }
+
+    // T13 positive-hash case (plan T13 hygiene follow-up, folded into T14 per the T13 reviewer's
+    // recommendation): a job WITH a ManualDocumentId must resolve and pass the real
+    // ManualDocument.SourceContentHash into the index call -- not null, and not string.Empty. This is the
+    // counterpart to ReprocessByJobIdAsync_JobHasNoManualDocument_PassesNullSourceContentHash_NeverEmptyString:
+    // together they pin both branches of the hash-resolution contract. Now authorable because T14 made
+    // ChunkReprocessService's IManualDocumentRepository constructor parameter required (was previously
+    // optional = null, with a T13-follow-up note in SourceContentHashResolver.ResolveAsync).
+    [Fact]
+    public async Task ReprocessByJobIdAsync_JobHasManualDocument_PassesResolvedSourceContentHash_NeverNull()
+    {
+        var testHash = "sha256-realhash-789xyz";
+        var testDocId = Guid.NewGuid();
+        var manualDocument = ManualDocument.Create(
+            documentId: testDocId,
+            sourceFileName: "test.pdf",
+            canonicalBlobContainer: "container",
+            canonicalBlobPath: "path",
+            documentType: "manual-pdf",
+            sourceContentHash: testHash);
+        _manualDocumentRepoMock
+            .Setup(x => x.GetDocumentByIdAsync(testDocId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(manualDocument);
+
+        // Build a job whose ManualDocumentId points at the mocked ManualDocument. IngestionJob.Create
+        // always leaves ManualDocumentId null, so use Rehydrate to set it explicitly.
+        var job = IngestionJob.Rehydrate(
+            id: 0,
+            ingestionJobId: Guid.NewGuid(),
+            createdAtUtc: DateTimeOffset.UtcNow,
+            startedAtUtc: null,
+            completedAtUtc: null,
+            createdBySubject: null,
+            status: IngestionJobStatus.Queued,
+            failureReason: null,
+            errorsJson: null,
+            errorMessage: null,
+            inputType: IngestionJobType.PDFManual,
+            inputRef: "uploads/linked-manual",
+            sourceFileName: null,
+            computeProvider: "MicrosoftFabric",
+            docIngestionRunId: null,
+            manualDocumentId: testDocId,
+            totalPages: null,
+            pagesCapturedViewableCount: null,
+            pagesWithSearchableTextCount: null,
+            pagesWithOcrTextCount: null,
+            pagesWithNativeTextCount: null,
+            missingPagesJson: null,
+            metricsJson: null,
+            expectedChunkCount: null,
+            indexedChunkCount: null,
+            currentStage: null,
+            stageSetAtUtc: null,
+            metadataJson: null);
+        var jobId = job.IngestionJobId;
+        var artifact = CreateArtifact(jobId, job.InputRef);
+        _jobRepoMock.Setup(x => x.GetByIdAsync(jobId, It.IsAny<CancellationToken>())).ReturnsAsync(job);
+        _artifactRepoMock
+            .Setup(x => x.GetByUploadAndTypeAsync(job.InputRef, "search-chunks", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(artifact);
+        _blobStorageMock
+            .Setup(x => x.ExistsAsync(artifact.BlobContainer, artifact.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        _blobStorageMock
+            .Setup(x => x.DownloadAsync(artifact.BlobContainer, artifact.BlobPath, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => new MemoryStream());
+
+        var outcomes = new List<ChunkIndexOutcome> { new("chunk-1", true, null, 1, 0, "file.pdf") };
+        var indexingResult = new ChunkIndexingResult(1, 1, outcomes);
+
+        string? capturedSourceContentHash = null;
+        _indexingMock
+            .Setup(x => x.IndexFromJsonlAsync(
+                It.IsAny<Stream>(),
+                job.InputRef,
+                It.IsAny<Guid>(),
+                It.IsAny<Guid>(),
+                It.IsAny<string>(),
+                It.IsAny<CancellationToken>()))
+            .Callback<Stream, string, Guid, Guid, string, CancellationToken>((_, _, _, _, sourceContentHash, _) =>
+            {
+                capturedSourceContentHash = sourceContentHash;
+            })
+            .ReturnsAsync(indexingResult);
+
+        await _sut.ReprocessByJobIdAsync(jobId);
+
+        capturedSourceContentHash.Should().Be(testHash,
+            "a job with a ManualDocumentId must resolve the owning ManualDocument.SourceContentHash and pass " +
+            "it into the index call -- this is what anchors reprocessed chunks back to their source document " +
+            "version, and is the positive counterpart to the no-ManualDocument null-hash contract");
+        _manualDocumentRepoMock.Verify(
+            x => x.GetDocumentByIdAsync(testDocId, It.IsAny<CancellationToken>()),
+            Times.Once,
+            "SourceContentHashResolver.ResolveAsync must actually look up the ManualDocument when ManualDocumentId is set");
     }
 
     [Fact]
@@ -398,7 +637,7 @@ public class ChunkReprocessServiceTests
 
         var indexingResult = new ChunkIndexingResult(0, 0, new List<ChunkIndexOutcome>());
         _indexingMock
-            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<CancellationToken>()))
+            .Setup(x => x.IndexFromJsonlAsync(It.IsAny<Stream>(), job.InputRef, It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(indexingResult);
 
         var result = await _sut.ReprocessByJobIdAsync(jobId);

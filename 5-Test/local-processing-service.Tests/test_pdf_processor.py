@@ -827,6 +827,332 @@ def _uploaded_search_chunks(api_client) -> list[dict[str, Any]]:
     return [json.loads(line) for line in payload.splitlines() if line.strip()]
 
 
+def _graph_entities_calls(api_client) -> list[dict[str, Any]]:
+    """Every uploaded graph-entities payload, parsed, in call order.
+
+    Each payload may be either the legacy ``[{"nodes": [...], "edges": [...]}]``
+    single-element-list shape ``graph_extractor.extract`` already returns, or a
+    flattened ``{"nodes": [...], "edges": [...]}`` dict — this helper
+    normalizes either to the flat dict form so callers don't need to know
+    which shape the implementation under test produced.
+    """
+    calls = [
+        c
+        for c in api_client.upload_artifact.await_args_list
+        if len(c.args) >= 3 and c.args[2] == "graph-entities"
+    ]
+    assert calls, "Expected at least one graph-entities upload_artifact call"
+    results: list[dict[str, Any]] = []
+    for c in calls:
+        payload = c.args[0]
+        if isinstance(payload, (bytes, bytearray)):
+            payload = payload.decode("utf-8")
+        parsed = json.loads(payload)
+        if isinstance(parsed, list):
+            assert parsed, "graph-entities payload list was unexpectedly empty"
+            parsed = parsed[0]
+        results.append(parsed)
+    return results
+
+
+def _uploaded_graph_entities(api_client) -> dict[str, Any]:
+    """The most recently uploaded graph-entities payload (flat nodes/edges dict)."""
+    return _graph_entities_calls(api_client)[-1]
+
+
+# ---------------------------------------------------------------------------
+# Graph extraction chunk/document anchor contract
+# (6-Docs/archive/plans/2026-08-01-vector-graph-anchor-id-contract.md, §4 row T2)
+#
+# pdf_processor.py now calls the chunk-list form of
+# ``self._graph_extractor.extract(...)`` and materializes the canonical
+# Chunk/Document graph nodes plus PART_OF/SOURCED_FROM edges these tests pin.
+# See the class docstring below for the exact contract being asserted.
+# ---------------------------------------------------------------------------
+
+
+class TestGraphExtractionChunkDocumentAnchorContract:
+    """``graph_extractor.extract`` must be called with the same canonical
+    chunk ids already written into the uploaded search-chunks JSONL (the
+    shared vector<->graph anchor key, plan decision D1), and the uploaded
+    graph-entities payload must carry deterministically-materialized
+    ``Chunk``/``Document`` nodes plus ``PART_OF``/``SOURCED_FROM`` edges per
+    ``6-Docs/reference/knowledge-graph-ontology.md``.
+
+    Per D1, Chunk/Document node ids are produced deterministically (uuid5
+    from the existing chunk/artifact id, the same pattern
+    ``bike_graph_processor._node_id`` already uses) — no LLM involvement.
+    These tests intentionally do not hardcode a literal uuid5
+    namespace/seed (the plan does not fix one); they assert determinism
+    and correct linkage instead (see
+    ``test_chunk_and_document_node_ids_are_deterministic_not_random``).
+    """
+
+    UPLOAD_ID = "upload-graph-anchor"
+
+    @staticmethod
+    def _entity_node(source_chunk_ids: list[str]) -> dict[str, Any]:
+        """A single mocked graph_extractor entity node, as if already merged
+        from batches (see graph_extractor.py's ``_merge_results``): it
+        carries ``sourceChunkIds`` — the chunk ids that contributed to the
+        LLM call that produced it.
+        """
+        return {
+            "id": "6f5c1e2a-1111-4a11-9a11-000000000001",
+            "name": "Front brake caliper torque",
+            "type": "Spec",
+            "description": "35 Nm",
+            "sourceChunkIds": source_chunk_ids,
+        }
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_graph_extractor_called_with_chunk_ids_matching_search_chunk_upload(
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        graph_extractor,
+        api_client,
+        metadata,
+    ):
+        """graph_extractor.extract must receive the exact same chunk ids
+        already written into the uploaded search-chunks JSONL records —
+        the assertion that actually proves the vector and graph sides
+        share one canonical key, not merely the same id *format*.
+        """
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        expected_chunk_ids = [f"{self.UPLOAD_ID}-pdf-0", f"{self.UPLOAD_ID}-pdf-1"]
+        graph_extractor.extract = AsyncMock(
+            return_value=[
+                {"nodes": [self._entity_node(expected_chunk_ids[:1])], "edges": []}
+            ]
+        )
+
+        job_id = await processor.process_pdf_async(
+            upload_id=self.UPLOAD_ID,
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+        await _wait_for_terminal_status(processor, job_id)
+
+        search_chunk_ids = [r["id"] for r in _uploaded_search_chunks(api_client)]
+        assert search_chunk_ids == expected_chunk_ids
+
+        graph_extractor.extract.assert_awaited_once()
+        await_args = graph_extractor.extract.await_args
+        chunks_arg = (
+            await_args.args[0] if await_args.args else await_args.kwargs.get("chunks")
+        )
+        assert isinstance(chunks_arg, list), (
+            "graph_extractor.extract must be called with a list of "
+            f"(chunk_id, chunk_text) tuples; got {type(chunks_arg).__name__} "
+            f"({chunks_arg!r:.200})"
+        )
+        called_chunk_ids = [chunk_id for chunk_id, _chunk_text in chunks_arg]
+
+        # Equality of the two ID lists (not just format) is the load-bearing
+        # assertion: it proves pdf_processor reuses the same chunk id it
+        # already wrote to the vector record, rather than deriving a second,
+        # possibly-divergent id for the graph side.
+        assert called_chunk_ids == search_chunk_ids
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_uploaded_graph_entities_materialize_chunk_and_document_nodes_with_edges(
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        graph_extractor,
+        api_client,
+        metadata,
+    ):
+        """Two input chunks must yield exactly two Chunk nodes and one
+        Document node, a PART_OF edge from every Chunk node to the Document
+        node, and a SOURCED_FROM edge from the extracted entity to only the
+        Chunk node(s) named in its sourceChunkIds (here, just the first
+        chunk) — proving SOURCED_FROM's per-entity attribution is distinct
+        from PART_OF's blanket chunk-to-document link.
+        """
+        MockGetTokenizer.return_value = MagicMock()
+        fake_chunks = [_make_chunk("Chunk 1"), _make_chunk("Chunk 2", page_no=2)]
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = fake_chunks
+
+        expected_chunk_ids = [f"{self.UPLOAD_ID}-pdf-0", f"{self.UPLOAD_ID}-pdf-1"]
+        entity_node = self._entity_node([expected_chunk_ids[0]])
+        graph_extractor.extract = AsyncMock(
+            return_value=[{"nodes": [entity_node], "edges": []}]
+        )
+
+        job_id = await processor.process_pdf_async(
+            upload_id=self.UPLOAD_ID,
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+        await _wait_for_terminal_status(processor, job_id)
+
+        entities = _uploaded_graph_entities(api_client)
+        nodes = entities.get("nodes", [])
+        edges = entities.get("edges", [])
+
+        chunk_nodes = [n for n in nodes if n.get("type") == "Chunk"]
+        document_nodes = [n for n in nodes if n.get("type") == "Document"]
+
+        # (2) exactly one Chunk node per input chunk, exactly one Document node.
+        assert len(chunk_nodes) == len(expected_chunk_ids), (
+            f"expected {len(expected_chunk_ids)} Chunk nodes (one per input "
+            f"chunk), got {len(chunk_nodes)}: {chunk_nodes}"
+        )
+        assert len(document_nodes) == 1, (
+            f"expected exactly one Document node, got {len(document_nodes)}: "
+            f"{document_nodes}"
+        )
+
+        # Chunk nodes must carry the field GraphEntityIngestionService reads
+        # into GraphNodeDto.ChunkId (plan §4 row T6's fixed JSON contract:
+        # {"type":"Chunk","chunkId":"c-1",...}) so each is traceable back to
+        # the search-chunk id it projects.
+        chunk_id_to_node_id = {n.get("chunkId"): n.get("id") for n in chunk_nodes}
+        assert set(chunk_id_to_node_id) == set(expected_chunk_ids), (
+            "every Chunk node must carry a 'chunkId' field equal to one of "
+            f"the search-chunk ids {expected_chunk_ids}; got chunkId values "
+            f"{list(chunk_id_to_node_id)}"
+        )
+        assert all(chunk_id_to_node_id.values()), (
+            f"every Chunk node must carry a non-empty 'id': {chunk_id_to_node_id}"
+        )
+
+        document_node_id = document_nodes[0].get("id")
+        assert document_node_id, "the Document node must carry a non-empty 'id'"
+
+        # (3) a PART_OF edge from every Chunk node id to the Document node id.
+        part_of_edges = [e for e in edges if e.get("relationshipType") == "PART_OF"]
+        part_of_pairs = {(e.get("fromNodeId"), e.get("toNodeId")) for e in part_of_edges}
+        expected_part_of_pairs = {
+            (node_id, document_node_id) for node_id in chunk_id_to_node_id.values()
+        }
+        assert part_of_pairs == expected_part_of_pairs, (
+            f"expected a PART_OF edge from every Chunk node to the Document "
+            f"node {expected_part_of_pairs}, got {part_of_pairs}"
+        )
+
+        # (4) a SOURCED_FROM edge from the extracted entity node to each
+        # Chunk node id listed in that entity's sourceChunkIds — here, only
+        # the first chunk, never the second.
+        sourced_from_edges = [
+            e for e in edges if e.get("relationshipType") == "SOURCED_FROM"
+        ]
+        sourced_from_pairs = {
+            (e.get("fromNodeId"), e.get("toNodeId")) for e in sourced_from_edges
+        }
+        expected_sourced_chunk_node_id = chunk_id_to_node_id[expected_chunk_ids[0]]
+        assert sourced_from_pairs == {
+            (entity_node["id"], expected_sourced_chunk_node_id)
+        }, (
+            f"expected exactly one SOURCED_FROM edge, from the entity node "
+            f"{entity_node['id']} to the Chunk node for "
+            f"{expected_chunk_ids[0]} ({expected_sourced_chunk_node_id}); "
+            f"got {sourced_from_pairs}"
+        )
+
+    @patch("processors.pdf_processor.get_pdf_chunker_tokenizer")
+    @patch("processors.pdf_processor.HybridChunker")
+    @patch("processors.pdf_processor.DocumentConverter")
+    async def test_chunk_and_document_node_ids_are_deterministic_not_random(
+        self,
+        MockConverter,
+        MockChunker,
+        MockGetTokenizer,
+        processor,
+        graph_extractor,
+        api_client,
+        metadata,
+    ):
+        """Per D1, Chunk/Document node ids are derived deterministically
+        (uuid5 from the existing chunk/artifact id) — not randomly
+        generated per run. Runs the pipeline twice against the same
+        upload_id/chunks and requires the same Chunk node ids both times.
+        Deliberately does not hardcode the exact uuid5 namespace/seed (the
+        plan does not fix one) — only that the chunk_id -> node_id mapping
+        is stable across runs and that node ids are well-formed UUIDs
+        distinct from the raw chunk id strings (i.e., genuinely derived,
+        not the chunk id reused verbatim).
+        """
+        MockGetTokenizer.return_value = MagicMock()
+        mock_result = MagicMock()
+        mock_result.document = MagicMock()
+        MockConverter.return_value.convert.return_value = mock_result
+        MockChunker.return_value.chunk.return_value = [
+            _make_chunk("Chunk 1"),
+            _make_chunk("Chunk 2", page_no=2),
+        ]
+        graph_extractor.extract = AsyncMock(return_value=[{"nodes": [], "edges": []}])
+
+        job_id_1 = await processor.process_pdf_async(
+            upload_id=self.UPLOAD_ID,
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+        await _wait_for_terminal_status(processor, job_id_1)
+
+        job_id_2 = await processor.process_pdf_async(
+            upload_id=self.UPLOAD_ID,
+            document_type="manual",
+            blob_container="raw-uploads",
+            metadata=metadata,
+            source_access_token="test-token",
+        )
+        await _wait_for_terminal_status(processor, job_id_2)
+
+        first_run, second_run = _graph_entities_calls(api_client)
+
+        def _chunk_node_ids(entities: dict[str, Any]) -> dict[str, str]:
+            return {
+                n.get("chunkId"): n.get("id")
+                for n in entities.get("nodes", [])
+                if n.get("type") == "Chunk"
+            }
+
+        first_ids = _chunk_node_ids(first_run)
+        second_ids = _chunk_node_ids(second_run)
+
+        expected_chunk_ids = [f"{self.UPLOAD_ID}-pdf-0", f"{self.UPLOAD_ID}-pdf-1"]
+        assert set(first_ids) == set(expected_chunk_ids), (
+            f"expected Chunk nodes for {expected_chunk_ids}, got {list(first_ids)}"
+        )
+        assert first_ids == second_ids, (
+            "Chunk node ids must be deterministic for the same chunk id "
+            f"across runs; run 1 gave {first_ids}, run 2 gave {second_ids}"
+        )
+        for chunk_id, node_id in first_ids.items():
+            assert node_id, f"Chunk node for {chunk_id!r} has no 'id'"
+            uuid.UUID(str(node_id))  # raises ValueError if not well-formed
+            assert node_id != chunk_id, (
+                "Chunk node 'id' must be a derived value (e.g. uuid5), not "
+                "the raw search-chunk id reused verbatim"
+            )
+
+
 class TestResolveSourceFileName:
     """Unit tests for the _resolve_source_file_name helper.
 

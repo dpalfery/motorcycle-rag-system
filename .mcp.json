@@ -36,7 +36,8 @@
         "@azure/mcp@latest",
         "server",
         "start"
-      ]
+      ],
+      "disabled": true
     },
     "github": {
       "type": "http",

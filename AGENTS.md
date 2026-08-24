@@ -4,7 +4,7 @@
 
 ## Non-negotiable rules
 
-- **CodeGraph first:** Before using `grep`, `rg`, `find`, shell globbing, or direct file reads to locate or understand repository files or source code, use CodeGraph. Prefer the CodeGraph MCP tool; if it is unavailable, run `codegraph explore`. Use another discovery or read method only when CodeGraph fails to return a relevant, sufficiently complete source result, and state that failure before using the fallback.
+- **CodeGraph first:** Before using `grep`, `glob`,`read`, `rg`, `find`, shell globbing, or direct file reads to locate or understand repository files or source code, use CodeGraph. Prefer the CodeGraph MCP tool; if it is unavailable, run `codegraph explore`. Use another discovery or read method only when CodeGraph fails to return a relevant, sufficiently complete source result, and state that failure before using the fallback.
 - **Kyber-Weave for documentation:** Before grepping or reading files under `6-Docs/` to answer a question, use the Kyber-Weave MCP tool `mcp__kyber-weave__docs_explore`. It ranks on declared frontmatter identity, returns the one relevant `##` section rather than a whole runbook, and carries that document's resolved joins to the code graph. Before renaming, moving, or changing the contract of a code symbol, use `mcp__kyber-weave__docs_for_symbol` to find the documentation that must change with it: a `code-refs` entry is a formal claim of ownership, which grep cannot distinguish from a passing prose mention. There is no CLI equivalent of either tool — if the MCP server is unavailable, fall back to the [documentation index](6-Docs/README.md) and state that the tool was unavailable. The corpus excludes `6-Docs/archive/`, which is historical and is never retrieved as current guidance.
 - Do not create infrastructure, deployment assets, dependencies, cross-cutting concerns, or documentation files without user approval. Ask before an architectural decision; present the trade-offs.
 - Do not commit, push, reset, restore, checkout, clean, or rebase without explicit user approval. Keep agent-generated notes in the path declared as **Agent Scratchpad** in the Config Registry below, never at repository root and never under `6-Docs/`.
@@ -14,6 +14,7 @@
 - Before every `az` read, verify the active subscription against the allowlist in [Azure agent access](6-Docs/AzureEnvironment/agent-access.md). Azure writes, local `pulumi up`, direct Docker builds, and ACR pushes are forbidden.
 - Preserve Clean Architecture: inner layers never depend on outer layers; Contracts contains interfaces only; Contracts.Models contains shared DTOs only; business invariants belong in Domain; Application services belong in `Services`.
 - Do not create new files or folders at repository root, with the single exception of the **Agent Scratchpad** declared in the Config Registry below. Scripts, tools, and deployment assets belong under `7-Deployment/`; documentation belongs under `6-Docs/`; generated notes belong in the scratchpad. `6-Docs/` holds canonical documentation only — never scratch output, vendored packages, or git-ignored working files.
+- **RTK for shell commands:** Always prefix shell commands with `rtk` to minimize token consumption. Use `rtk <cmd>` instead of raw commands. See [RTK rules](6-Docs/rules/rtk-rules.md) for details and meta commands.
 
 Read the full [working agreement](6-Docs/system/agent-governance.md), [security directives](6-Docs/system/security.md), and [Azure environment rules](6-Docs/AzureEnvironment/agent-access.md) when the task touches their subject.
 
@@ -33,7 +34,7 @@ The documentation standard defines both lifecycles in detail, and the rules for 
 
 ## Kyber-Weave
 
-**Kyber-Weave** is the name of this repository's agent-and-documentation governance framework. Product source and releases live in the external repository [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave); MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in the root `kyber-weave.yml`. Its premise is that every artifact shaping agent behavior is a supply-chain artifact — parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The commands named throughout this file (`kyber-weave skill|agent|docs …`) and the `KW-*` rule codes are its surface. See the [Kyber-Weave reference](6-Docs/reference/kyber-weave.md).
+**Kyber-Weave** is the name of this repository's agent-and-documentation governance framework. Product source and releases live in the external repository [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave); MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in `.kyber-weave/kyber-weave.yml`. Its premise is that every artifact shaping agent behavior is a supply-chain artifact — parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The commands named throughout this file (`kyber-weave skill|agent|docs …`) and the `KW-*` rule codes are its surface. See the [Kyber-Weave reference](6-Docs/reference/kyber-weave.md).
 
 ## Agent configuration synchronization
 
@@ -70,7 +71,7 @@ Agents and skills should look up the following properties dynamically to find th
 - **Documentation Index:** `6-Docs/README.md`
 - **Documentation Standard:** `6-Docs/documentation-standard.md`
 - **Documentation Ontology:** `6-Docs/documentation-ontology.md`
-- **Governance Framework (Kyber-Weave):** external product [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave) — install CLI/MCP via GitHub Releases, npm (`@dpalfery/kyber-weave`), or Homebrew; host overrides: root `kyber-weave.yml`; reference: `6-Docs/reference/kyber-weave.md`
+- **Governance Framework (Kyber-Weave):** external product [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave) — install CLI/MCP via GitHub Releases, npm (`@dpalfery/kyber-weave`), or Homebrew; host overrides: `.kyber-weave/kyber-weave.yml`; reference: `6-Docs/reference/kyber-weave.md`
 - **Skill Validation Script:** `7-Deployment/scripts/kyber-weave-validate.sh`
 - **Agent Scratchpad:** `.agent-scratch-pad/`
 - **Clean Architecture Rules:** `6-Docs/rules/architecture-general.md`
@@ -91,3 +92,14 @@ Agents and skills should look up the following properties dynamically to find th
 - **Azure Naming Standard:** `6-Docs/reference/azure-naming-standards.md`
 
 Skills and other portable instruction files SHALL reference these paths by the property name above (e.g. "the path declared as **Test Coverage Config** in the repository root `AGENTS.md`") rather than embedding a relative link that traverses out of the skill's own directory (e.g. `../../5-Test/...`). This keeps skill files self-contained and correct if repository layout changes — only this table needs updating.
+
+<!-- CODEGRAPH_START -->
+## CodeGraph
+
+In repositories indexed by CodeGraph (a `.codegraph/` directory exists at the repo root), reach for it BEFORE grep/find or reading files when you need to understand or locate code:
+
+- **MCP tool** (when available): `codegraph_explore` answers most code questions in one call — the relevant symbols' verbatim source plus the call paths between them, including dynamic-dispatch hops grep can't follow. Name a file or symbol in the query to read its current line-numbered source. If it's listed but deferred, load it by name via tool search.
+- **Shell** (always works): `codegraph explore "<symbol names or question>"` prints the same output.
+
+If there is no `.codegraph/` directory, skip CodeGraph entirely — indexing is the user's decision.
+<!-- CODEGRAPH_END -->

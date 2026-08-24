@@ -65,4 +65,22 @@ public class IngestionOptions
     /// A value of 0 disables budget enforcement.
     /// </summary>
     public decimal MonthlyBudgetLimit { get; set; } = 500m;
+
+    /// <summary>
+    /// Maximum number of retry attempts for orphaned artifacts before transitioning to terminal state.
+    /// Defaults to 5 per plan D9.
+    /// </summary>
+    public int MaxOrphanRetryAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// Retention window for orphaned artifacts before automatic terminal transition.
+    /// Defaults to 24 hours per plan D9.
+    /// </summary>
+    public TimeSpan OrphanRetentionWindow { get; set; } = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// Interval between orphan artifact sweep cycles.
+    /// Defaults to 5 minutes per plan D9.
+    /// </summary>
+    public TimeSpan OrphanSweepInterval { get; set; } = TimeSpan.FromMinutes(5);
 }

@@ -4,8 +4,10 @@ title: "Clean Architecture + DDD Folder Structure (C#)"
 doc-type: rule
 status: current
 owner: Architecture maintainers
-last-reviewed: 2026-07-21
-code-refs: []
+last-reviewed: 2026-08-02
+code-refs:
+  - FoundryAgentRunner
+  - TelemetryService
 api-endpoints: []
 decided-by: []
 supersedes: []
@@ -390,6 +392,13 @@ A database key, public auto-properties, default initializers, or validation attr
   *Folder:* `Mocks`
 
 > **Clean Architecture Benefit:** Because business logic is decoupled from infrastructure, you can test most of your system without databases, APIs, or UI frameworks.
+
+### Accepted coverage limitations (SDK-blocked)
+
+Two `MotorcycleRAG.Persistence` services carry accepted coverage limitations caused by non-virtual methods in the Azure and Application Insights SDKs. These are **accepted limitations, not defects**: no coverage-policy change is included, no production-service refactoring is included, and the classes are currently tested up to their reachable surface. If future work lifts their coverage via wrapper interfaces, this note is superseded.
+
+- **`FoundryAgentRunner`** (`4-Persistence/MotorcycleRAG.Persistence/Azure/FoundryAgentRunner.cs`) calls concrete non-virtual Azure SDK methods on `ProjectConversationsClient`, `ProjectOpenAIClient`, and the responses client (`CreateProjectConversationAsync`, `DeleteConversationAsync`, `GetProjectResponsesClientForAgent`, `CreateResponseAsync`). The constructor injects `IFoundryClientFactory`, but the factory returns concrete SDK clients that Moq cannot intercept. The 27 existing tests cover constructor validation and the static helpers (`BuildAgentVersionMap`, `MapToAgentResponseStatus`).
+- **`TelemetryService`** (`4-Persistence/MotorcycleRAG.Persistence/Telemetry/TelemetryService.cs`) consumes `TelemetryClient` (Application Insights SDK) with non-virtual methods. The internal constructor exposes an `Action<ITelemetry>?` observer for testability, but the `MetricTelemetry` pre-aggregation path is SDK-internal. The 99 existing tests cover the reachable surface.
 
 ---
 

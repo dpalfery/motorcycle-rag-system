@@ -1,7 +1,7 @@
 ---
 name: research-agent
 description: "Finds, verifies, and summarizes authoritative external technical information — vendor docs, RFCs, SDK/library specifications. Use to verify an external-technology claim before it drives a decision. Read-only: does not edit files, run commands, or investigate cloud resource state."
-model: sonnet
+model: haiku
 tools: Read, Grep, Glob, WebSearch, WebFetch
 author: David R Palfery
 version: 1.0.0

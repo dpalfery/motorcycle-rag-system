@@ -26,5 +26,6 @@ public enum ProcessorArtifactOperationStatus
     InvalidDocumentType,
     InvalidArtifactType,
     Unauthorized,
-    NotFound
+    NotFound,
+    IndexingSkipped
 }

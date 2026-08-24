@@ -33,22 +33,6 @@ class TestGraphExtractorInstantiation:
 
 class TestExtract:
     @patch("extraction.graph_extractor.openai.AsyncOpenAI")
-    async def test_returns_empty_list_on_empty_input(self, MockOpenAI):
-        from extraction.graph_extractor import GraphExtractor
-
-        extractor = GraphExtractor()
-        result = await extractor.extract("")
-        assert result == []
-
-    @patch("extraction.graph_extractor.openai.AsyncOpenAI")
-    async def test_returns_empty_list_on_whitespace(self, MockOpenAI):
-        from extraction.graph_extractor import GraphExtractor
-
-        extractor = GraphExtractor()
-        result = await extractor.extract("   \n\t  ")
-        assert result == []
-
-    @patch("extraction.graph_extractor.openai.AsyncOpenAI")
     async def test_returns_list_with_nodes_edges_on_valid_json(self, MockOpenAI):
         from extraction.graph_extractor import GraphExtractor
 
@@ -80,7 +64,9 @@ class TestExtract:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         extractor = GraphExtractor()
-        result = await extractor.extract("Change the oil filter on the Honda CB500.")
+        result = await extractor.extract(
+            [("chunk-1", "Change the oil filter on the Honda CB500.")]
+        )
 
         assert isinstance(result, list)
         assert len(result) == 1
@@ -114,7 +100,7 @@ class TestExtract:
 
         extractor = GraphExtractor()
         result = await extractor.extract(
-            "Replace brake pads", source_document_id="doc-123"
+            [("chunk-1", "Replace brake pads")], source_document_id="doc-123"
         )
 
         assert len(result) == 1
@@ -132,7 +118,7 @@ class TestExtract:
         mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
 
         extractor = GraphExtractor()
-        result = await extractor.extract("Some motorcycle text")
+        result = await extractor.extract([("chunk-1", "Some motorcycle text")])
 
         assert result == []
 
@@ -146,7 +132,142 @@ class TestExtract:
         )
 
         extractor = GraphExtractor()
-        result = await extractor.extract("Some text about brakes")
+        result = await extractor.extract([("chunk-1", "Some text about brakes")])
+
+        assert result == []
+
+    async def test_extract_rejects_bare_str_with_type_error(self, monkeypatch):
+        """extract() contract narrowed to list[tuple[str, str]]: a bare str
+        is a contract violation and must raise TypeError (plan T6 / D-d3)."""
+        from extraction.graph_extractor import GraphExtractor
+
+        async def mock_query_llm(*args, **kwargs):
+            return {"nodes": [], "edges": []}
+
+        monkeypatch.setattr(
+            "extraction.graph_extractor._query_llm_with_retry", mock_query_llm
+        )
+
+        extractor = GraphExtractor()
+        with pytest.raises(TypeError):
+            await extractor.extract("some text")  # pyright: ignore[reportArgumentType]
+
+    # ------------------------------------------------------------------
+    # New chunk-list contract (2026-08-01-vector-graph-anchor-id-contract,
+    # T1): extract() takes chunks: list[tuple[str, str]] — (chunk_id,
+    # chunk_text) — instead of a single text: str. Batching must never
+    # split a chunk's text across two LLM calls, and merged nodes must
+    # carry a sourceChunkIds sorted union of the contributing chunk ids.
+    # ------------------------------------------------------------------
+
+    @patch("extraction.graph_extractor.openai.AsyncOpenAI")
+    async def test_extract_chunks_batches_never_split_a_single_chunk(
+        self, MockOpenAI
+    ):
+        """3 chunks whose combined size exceeds one token-budget batch: the
+        mocked LLM client must receive >= 2 calls, and every chunk's full
+        text must appear entirely within exactly one call's prompt — never
+        split across two calls.
+        """
+        from extraction.graph_extractor import GraphExtractor
+
+        # BATCH_TOKEN_BUDGET = 4000 tokens -> ~16000 chars per batch budget.
+        # Each chunk (7000 chars) fits within a single batch on its own,
+        # but three of them combined (21000 chars) exceed one batch.
+        chunks: list[tuple[str, str]] = [
+            ("chunk-1", "A" * 7000),
+            ("chunk-2", "B" * 7000),
+            ("chunk-3", "C" * 7000),
+        ]
+
+        captured_prompts: list[str] = []
+
+        async def fake_create(*args, **kwargs):
+            messages = kwargs.get("messages", [])
+            user_content = next(
+                (m["content"] for m in messages if m.get("role") == "user"), ""
+            )
+            captured_prompts.append(user_content)
+            empty_json = json.dumps({"nodes": [], "edges": []})
+            return SimpleNamespace(
+                choices=[SimpleNamespace(message=SimpleNamespace(content=empty_json))]
+            )
+
+        mock_client = MockOpenAI.return_value
+        mock_client.chat.completions.create = AsyncMock(side_effect=fake_create)
+
+        extractor = GraphExtractor()
+        await extractor.extract(chunks, source_document_id="doc-multi-chunk")
+
+        assert len(captured_prompts) >= 2, (
+            "expected the mocked LLM client to receive at least 2 calls for "
+            "3 chunks exceeding one token-budget batch"
+        )
+
+        for chunk_id, chunk_text in chunks:
+            containing_prompts = [p for p in captured_prompts if chunk_text in p]
+            assert len(containing_prompts) == 1, (
+                f"{chunk_id} text must appear entirely within exactly one "
+                f"call's prompt, found in {len(containing_prompts)}"
+            )
+
+    async def test_extract_merges_same_name_node_with_sorted_union_source_chunk_ids(
+        self, monkeypatch
+    ):
+        """Two batches (one per chunk) that both mention a node with the
+        same lowercased name must merge into exactly one node whose
+        sourceChunkIds is the sorted union of the contributing chunk ids.
+        """
+        from extraction.graph_extractor import GraphExtractor
+
+        call_count = 0
+
+        async def mock_query_llm(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return {
+                    "nodes": [{"id": "n1", "name": "Oil Filter", "type": "Component"}],
+                    "edges": [],
+                }
+            return {
+                "nodes": [{"id": "n2", "name": "oil filter", "type": "Component"}],
+                "edges": [],
+            }
+
+        monkeypatch.setattr(
+            "extraction.graph_extractor._query_llm_with_retry", mock_query_llm
+        )
+
+        # Each chunk (9000 chars) alone fits a batch, but two combined
+        # (18000 chars) exceed the ~16000-char budget, so batching must
+        # place them in two separate, whole-chunk batches.
+        chunks: list[tuple[str, str]] = [
+            ("chunk-a", "A" * 9000),
+            ("chunk-b", "B" * 9000),
+        ]
+
+        extractor = GraphExtractor()
+        result = await extractor.extract(chunks, source_document_id="doc-merge")
+
+        assert call_count == 2
+        assert len(result) == 1
+
+        nodes = result[0]["nodes"]
+        matching = [n for n in nodes if n["name"].strip().lower() == "oil filter"]
+        assert len(matching) == 1, "expected exactly one merged 'oil filter' node"
+
+        merged_node = matching[0]
+        assert merged_node["sourceChunkIds"] == sorted(["chunk-a", "chunk-b"])
+
+    @patch("extraction.graph_extractor.openai.AsyncOpenAI")
+    async def test_extract_empty_chunk_list_returns_empty_list(self, MockOpenAI):
+        """extract([]) returns [] — replaces the old extract("") empty-string
+        case now that extract() takes a chunk list instead of raw text."""
+        from extraction.graph_extractor import GraphExtractor
+
+        extractor = GraphExtractor()
+        result = await extractor.extract([])
 
         assert result == []
 
@@ -201,57 +322,6 @@ class TestTruncate:
         from extraction.graph_extractor import _truncate
 
         assert _truncate("") == ""
-
-
-class TestSplitIntoBatches:
-    """Tests for _split_into_batches — approximate token-budget batching."""
-
-    def test_empty_string_returns_empty_list(self):
-        from extraction.graph_extractor import _split_into_batches
-
-        assert _split_into_batches("") == []
-
-    def test_short_text_returns_single_batch(self):
-        from extraction.graph_extractor import _split_into_batches
-
-        text = "hello world"
-        batches = _split_into_batches(text)
-        assert len(batches) == 1
-        assert batches[0] == text
-
-    def test_text_at_budget_boundary_returns_one_batch(self):
-        from extraction.graph_extractor import _split_into_batches
-
-        # BATCH_TOKEN_BUDGET = 4000, so budget_chars = 16000
-        budget_chars = 4000 * 4  # 16000
-        text = "x" * budget_chars
-        batches = _split_into_batches(text)
-        assert len(batches) == 1
-
-    def test_text_one_char_over_boundary_returns_two_batches(self):
-        from extraction.graph_extractor import _split_into_batches
-
-        budget_chars = 4000 * 4  # 16000
-        text = "x" * (budget_chars + 1)
-        batches = _split_into_batches(text)
-        assert len(batches) == 2
-
-    def test_batches_concatenate_to_original_text(self):
-        from extraction.graph_extractor import _split_into_batches
-
-        text = "The quick brown fox. " * 2500  # ~63000 chars, >= 4 batches
-        batches = _split_into_batches(text)
-        assert "".join(batches) == text
-        assert len(batches) >= 3
-
-    def test_multi_batch_splits_evenly(self):
-        from extraction.graph_extractor import _split_into_batches
-
-        text = "x" * 32000
-        batches = _split_into_batches(text)
-        assert len(batches) == 2
-        # Both batches should be roughly the same size
-        assert -1 <= len(batches[0]) - len(batches[1]) <= 1
 
 
 class TestMergeResults:
@@ -653,7 +723,9 @@ class TestExtractBatching:
         )
 
         extractor = GraphExtractor()
-        result = await extractor.extract("Replace the brake pads.", "doc-42")
+        result = await extractor.extract(
+            [("chunk-1", "Replace the brake pads.")], "doc-42"
+        )
 
         assert len(result) == 1
         assert result[0]["nodes"][0]["name"] == "Brake Pad"
@@ -684,9 +756,14 @@ class TestExtractBatching:
         )
 
         extractor = GraphExtractor()
-        # Text long enough to split into 2 batches (>16000 chars)
-        long_text = "Motorcycle maintenance guide. " * 1000
-        result = await extractor.extract(long_text, "doc-1")
+        # Two 9000-char chunks: each fits one batch, but combined they exceed
+        # the ~16000-char budget, so batching must split them into 2
+        # whole-chunk batches (2 LLM calls).
+        chunks: list[tuple[str, str]] = [
+            ("chunk-a", "A" * 9000),
+            ("chunk-b", "B" * 9000),
+        ]
+        result = await extractor.extract(chunks, "doc-1")
 
         assert call_count >= 2
         assert len(result) == 1
@@ -706,8 +783,12 @@ class TestExtractBatching:
         )
 
         extractor = GraphExtractor()
-        long_text = "x" * 20000  # triggers 2 batches
-        result = await extractor.extract(long_text, "doc-1")
+        # Two 9000-char chunks → 2 whole-chunk batches; all fail.
+        chunks: list[tuple[str, str]] = [
+            ("chunk-a", "x" * 9000),
+            ("chunk-b", "x" * 9000),
+        ]
+        result = await extractor.extract(chunks, "doc-1")
 
         assert result == []
 
@@ -734,8 +815,12 @@ class TestExtractBatching:
         )
 
         extractor = GraphExtractor()
-        long_text = "x" * 20000  # triggers 2 batches
-        result = await extractor.extract(long_text, "doc-1")
+        # Two 9000-char chunks → 2 whole-chunk batches; batch 2 fails.
+        chunks: list[tuple[str, str]] = [
+            ("chunk-a", "x" * 9000),
+            ("chunk-b", "x" * 9000),
+        ]
+        result = await extractor.extract(chunks, "doc-1")
 
         # Only batch 1 succeeded
         assert len(result) == 1
@@ -815,7 +900,7 @@ class TestCaplogTelemetry:
         caplog.set_level(logging.INFO)
 
         extractor = GraphExtractor()
-        await extractor.extract("", "doc-e")
+        await extractor.extract([], "doc-e")
 
         info_records = [r for r in caplog.records if r.levelno == logging.INFO]
         assert len(info_records) >= 1
@@ -838,8 +923,12 @@ class TestCaplogTelemetry:
         )
 
         extractor = GraphExtractor()
-        text = "x" * 20000  # triggers 2 batches
-        await extractor.extract(text, "doc-s")
+        # Two 9000-char chunks → 2 whole-chunk batches (num_batches=2).
+        chunks: list[tuple[str, str]] = [
+            ("chunk-a", "x" * 9000),
+            ("chunk-b", "x" * 9000),
+        ]
+        await extractor.extract(chunks, "doc-s")
 
         info_records = [r for r in caplog.records if r.levelno == logging.INFO]
         info_messages = [r.message for r in info_records]

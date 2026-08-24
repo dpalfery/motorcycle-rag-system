@@ -6,7 +6,6 @@ Batched + deduped + retrying graph extraction with per-call I/O telemetry.
 import asyncio
 import json
 import logging
-import math
 import os
 import time
 from typing import Any
@@ -70,45 +69,92 @@ def _truncate(text: str, limit: int = _LOG_TRUNCATE) -> str:
     return text[:limit] + f"...[truncated {len(text) - limit} chars]"
 
 
-def _split_into_batches(text: str) -> list[str]:
-    """Split text into ~BATCH_TOKEN_BUDGET-token approximate batches."""
-    total_chars = len(text)
-    if total_chars == 0:
-        return []
+def _split_chunks_into_batches(
+    chunks: list[tuple[str, str]],
+) -> list[list[tuple[str, str]]]:
+    """Group whole chunks into ~BATCH_TOKEN_BUDGET-token approximate batches.
+
+    Groups whole ``(chunk_id, chunk_text)`` pairs so that a batch is always
+    an integral set of whole chunks — a chunk's text is never split across
+    two batches/LLM calls.
+
+    If a single chunk's text alone exceeds the budget, it still becomes
+    its own single-chunk batch and is sent to the LLM as-is — it is never
+    dropped, only ever grown into its own batch when it can't share one.
+    """
     budget_chars = BATCH_TOKEN_BUDGET * 4  # approximate chars per batch
-    num_batches = max(1, math.ceil(total_chars / budget_chars))
-    batch_size_chars = math.ceil(total_chars / num_batches)
-    return [
-        text[i : i + batch_size_chars] for i in range(0, total_chars, batch_size_chars)
-    ]
+    batches: list[list[tuple[str, str]]] = []
+    current_batch: list[tuple[str, str]] = []
+    current_chars = 0
+
+    for chunk_id, chunk_text in chunks:
+        chunk_chars = len(chunk_text)
+        if current_batch and current_chars + chunk_chars > budget_chars:
+            batches.append(current_batch)
+            current_batch = []
+            current_chars = 0
+        current_batch.append((chunk_id, chunk_text))
+        current_chars += chunk_chars
+
+    if current_batch:
+        batches.append(current_batch)
+
+    return batches
 
 
-def _merge_results(batch_results: list[dict[str, Any] | None]) -> dict[str, Any]:
+def _merge_results(
+    batch_results: list[dict[str, Any] | None],
+    batch_chunk_ids: list[list[str]] | None = None,
+) -> dict[str, Any]:
     """Merge batched graph extraction results.
 
     Node dedupe by lowercased name (first-seen-wins id/type/description).
     Edge endpoints rewritten from batch-local to canonical node ids.
     Edge dedupe by (from_canonical, to_canonical, relationshipType).
+
+    ``batch_chunk_ids``, if provided, must be index-aligned with
+    ``batch_results`` — ``batch_chunk_ids[i]`` is the list of chunk ids
+    that contributed to the LLM call that produced ``batch_results[i]``.
+    When provided, every merged node gains a ``sourceChunkIds`` key: the
+    sorted union of chunk ids from every batch that contributed a node of
+    that (lowercased) name. When omitted (the legacy raw-text contract),
+    no ``sourceChunkIds`` attribution is possible and none is added.
     """
     all_nodes: list[dict[str, Any]] = []
     all_edges: list[dict[str, Any]] = []
+    # Parallel to all_nodes: the contributing chunk ids for each node,
+    # only populated when batch_chunk_ids is supplied.
+    all_node_chunk_ids: list[list[str]] = []
 
-    for result in batch_results:
+    for batch_index, result in enumerate(batch_results):
         if result is None:
             continue
         nodes = result.get("nodes", []) or []
         edges = result.get("edges", []) or []
+        chunk_ids_for_batch = (
+            batch_chunk_ids[batch_index] if batch_chunk_ids is not None else []
+        )
         all_nodes.extend(nodes)
+        all_node_chunk_ids.extend([chunk_ids_for_batch] * len(nodes))
         all_edges.extend(edges)
 
-    # Dedupe nodes by lowercased name (first-seen-wins)
+    # Dedupe nodes by lowercased name (first-seen-wins), unioning the
+    # contributing chunk ids across every batch that named this node.
     name_to_canonical: dict[str, dict[str, Any]] = {}
-    for node in all_nodes:
+    name_to_chunk_ids: dict[str, set[str]] = {}
+    for node, chunk_ids in zip(all_nodes, all_node_chunk_ids):
         name = (node.get("name") or "").strip().lower()
         if not name:
             continue
         if name not in name_to_canonical:
             name_to_canonical[name] = node
+            name_to_chunk_ids[name] = set()
+        if batch_chunk_ids is not None:
+            name_to_chunk_ids[name].update(chunk_ids)
+
+    if batch_chunk_ids is not None:
+        for name, canonical_node in name_to_canonical.items():
+            canonical_node["sourceChunkIds"] = sorted(name_to_chunk_ids[name])
 
     # Build id -> canonical_id mapping
     id_to_canonical: dict[str, str] = {}
@@ -300,39 +346,69 @@ class GraphExtractor:
         )
 
     async def extract(
-        self, text: str, source_document_id: str = ""
+        self,
+        chunks: list[tuple[str, str]],
+        source_document_id: str = "",
     ) -> list[dict[str, Any]]:
-        """Extract knowledge graph from text. Returns [{"nodes":[], "edges":[]}]."""
-        if not text or not text.strip():
+        """Extract knowledge graph entities/relationships.
+
+        ``chunks`` is ``list[tuple[str, str]]`` — each item a
+        ``(chunk_id, chunk_text)`` pair. Batches are re-aligned to
+        whole-chunk boundaries under the existing ``BATCH_TOKEN_BUDGET``: a
+        batch is always an integral set of whole chunks, never a
+        sub-chunk slice. If a single chunk's text alone exceeds the
+        budget, it still becomes its own single-chunk batch and is sent
+        to the LLM — it is never dropped. Every merged node carries
+        ``sourceChunkIds``: the sorted union of chunk ids from every batch
+        that contributed a node of that (lowercased) name.
+
+        A bare ``str`` is a contract violation and raises ``TypeError``.
+
+        Returns ``[{"nodes": [...], "edges": [...]}]`` or ``[]``.
+        """
+        if not isinstance(chunks, list):
+            raise TypeError(
+                "chunks must be a list of (chunk_id, chunk_text) tuples, got "
+                f"{type(chunks).__name__}"
+            )
+        if not chunks:
             logger.info(
                 "component=graph_extraction job_id=%s result=empty_text returning_empty",
                 sanitize_log_value(source_document_id),  # codeql[py/log-injection]
             )
             return []
 
-        batches = _split_into_batches(text)
+        chunk_batches = _split_chunks_into_batches(chunks)
+        num_batches = len(chunk_batches)
+        total_chars = sum(len(chunk_text) for _, chunk_text in chunks)
         logger.info(
             "component=graph_extraction job_id=%s total_chars=%d tokens_approx=%d "
             "num_batches=%d",
             sanitize_log_value(source_document_id),  # codeql[py/log-injection]
-            len(text),
-            _approx_tokens(text),
-            len(batches),
+            total_chars,
+            total_chars // 4,
+            num_batches,
         )
 
-        batch_results: list[dict[str, Any] | None] = []
-        for i, batch_text in enumerate(batches):
+        batch_results = []
+        batch_chunk_ids: list[list[str]] = []
+        for i, batch_chunks in enumerate(chunk_batches):
+            batch_text = "\n\n".join(
+                chunk_text for _, chunk_text in batch_chunks
+            )
             result = await _query_llm_with_retry(
                 self._client,
                 self._model,
                 batch_text,
                 i,
-                len(batches),
+                num_batches,
                 source_document_id,
             )
             batch_results.append(result)
+            batch_chunk_ids.append([chunk_id for chunk_id, _ in batch_chunks])
 
-        merged = _merge_results(batch_results)
+        merged = _merge_results(batch_results, batch_chunk_ids)
+
         nodes = merged.get("nodes", [])
         edges = merged.get("edges", [])
 
@@ -345,7 +421,7 @@ class GraphExtractor:
             "batches_processed=%d/%d total_nodes=%d total_edges=%d",
             sanitize_log_value(source_document_id),  # codeql[py/log-injection]
             sum(1 for r in batch_results if r is not None),
-            len(batches),
+            num_batches,
             len(nodes),
             len(edges),
         )

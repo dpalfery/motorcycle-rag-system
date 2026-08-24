@@ -25,6 +25,6 @@ failed.
 ## References
 
 - [Kyber-Weave reference](../../../6-Docs/reference/kyber-weave.md)
-- Host overrides: [`kyber-weave.yml`](../../../kyber-weave.yml)
+- Host overrides: [`.kyber-weave/kyber-weave.yml`](../../../.kyber-weave/kyber-weave.yml)
 - MCP registration: [`.mcp.json`](../../../.mcp.json)
 - CI install action: `.github/actions/install-kyber-weave`

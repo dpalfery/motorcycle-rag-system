@@ -13,7 +13,7 @@ supersedes: []
 ---
 # Kyber-Weave Reference
 
-Kyber-Weave is this repository's agent-and-documentation governance framework: a cross-ecosystem CLI and stdio MCP server. **Product source and releases live in the external repository** [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave). MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in the root [`kyber-weave.yml`](../../kyber-weave.yml).
+Kyber-Weave is this repository's agent-and-documentation governance framework: a cross-ecosystem CLI and stdio MCP server. **Product source and releases live in the external repository** [dpalfery/kyber-weave](https://github.com/dpalfery/kyber-weave). MotorcycleRAG consumes installed `kyber-weave` / `kyber-weave-mcp` binaries from PATH and supplies host-only policy in [`.kyber-weave/kyber-weave.yml`](../../.kyber-weave/kyber-weave.yml).
 
 The organising idea is that **every artifact that shapes agent behaviour — skills, agent definitions, and documentation — is a supply-chain artifact and gets the same treatment.** Each is parsed, validated against a closed spec, checked for drift against a source of truth, security-scanned, and made retrievable. The classes differ only in what their source of truth *is*: documentation answers to the code graph, an agent manifest to its sibling harness copies, a skill to the Agent Skills open format spec.
 
@@ -182,7 +182,7 @@ The rule names the fallback explicitly because neither tool has a CLI equivalent
 
 ## Host overrides
 
-This repository's root [`kyber-weave.yml`](../../kyber-weave.yml) supplies MotorcycleRAG-specific ontology and harness policy (docs root `6-Docs`, catalog column mapping, vendored-file exclusions, conductor→skill satisfaction). Product defaults ship without those host mappings.
+This repository's [`.kyber-weave/kyber-weave.yml`](../../.kyber-weave/kyber-weave.yml) supplies MotorcycleRAG-specific ontology and harness policy (docs root `6-Docs`, catalog column mapping, vendored-file exclusions, conductor→skill satisfaction). Product defaults ship without those host mappings.
 
 ## Deferred
 

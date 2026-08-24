@@ -4,7 +4,7 @@ title: MotorcycleRAG Knowledge Graph Ontology
 doc-type: reference
 status: draft
 owner: Ingestion maintainers
-last-reviewed: 2026-07-26
+last-reviewed: 2026-08-02
 code-refs: []
 api-endpoints: []
 decided-by: []
@@ -20,7 +20,7 @@ It is not the documentation ontology. [`documentation-ontology.md`](../documenta
 
 The type sets below are **closed**. The extractor's job at ingest is entity resolution and edge instantiation *against this vocabulary* — never label invention. A chunk that yields an unrecognised type is a quarantine event, not a new node type. Adding a node type or edge type is a change to this document, reviewed like any other interface change.
 
-**Status: draft — vocabulary defined, not yet enforced.** `GraphNode.Type` and `GraphEdge.RelationshipType` are currently `NVARCHAR` free-form values passed through from the Python `graph_extractor` output. Enforcement work is listed under [Enforcement gap](#enforcement-gap).
+**Status: draft — vocabulary defined; the `Chunk`/`Document` anchor subset of enforcement is implemented (2026-08-01), the full closed-vocabulary enforcement is not.** `GraphNode.Type` and `GraphEdge.RelationshipType` are still `NVARCHAR` free-form values passed through from the Python `graph_extractor` output for the ~25 domain node types; only the `Chunk`/`Document` types and their per-chunk `SOURCED_FROM`/`PART_OF` shapes are validated at ingest. The implemented and remaining enforcement work is listed under [Enforcement gap](#enforcement-gap).
 
 ## Storage model
 
@@ -28,7 +28,7 @@ The graph is physical SQL Server / Azure SQL Graph, deployed by the canonical sc
 
 | Table | Kind | Discriminator | Payload |
 | --- | --- | --- | --- |
-| `dbo.GraphNode` | `AS NODE` | `Type` | `Name`, `Description`, `SourceDocumentId` |
+| `dbo.GraphNode` | `AS NODE` | `Type` | `Name`, `Description`, `SourceDocumentId`, `ChunkId`, `SourceContentHash` |
 | `dbo.GraphEdge` | `AS EDGE` | `RelationshipType` | `Weight`, `Context` |
 
 Two consequences follow from the single-table design and must be respected by authors:
@@ -36,7 +36,14 @@ Two consequences follow from the single-table design and must be respected by au
 1. **Typed attributes have no columns.** A torque figure, a latitude, or a model year is not a `GraphNode` column. Structured values are carried either as a `Spec` node (unit-bearing, queryable) or as a JSON object in `Description` (descriptive only, not queryable). Prefer the `Spec` node whenever the value will appear in a `WHERE` clause.
 2. **The discriminator carries all typing.** `IX_GraphNode_Type` and `IX_GraphEdge_RelationshipType` are the only things making type-scoped traversal affordable, so every query SHALL filter on the discriminator rather than scanning by `Name`.
 
-Relational tables remain authoritative where they already exist. `dbo.BikeModels` is the source of truth for make/model/year; `ModelYear` graph nodes are projections of it and SHALL NOT be created for a bike absent from that table. `dbo.IndexedChunks` is the source of truth for retrievable text; `Chunk` nodes are projections carrying `SourceDocumentId`.
+Relational tables remain authoritative where they already exist. `dbo.BikeModels` is the source of truth for make/model/year; `ModelYear` graph nodes are projections of it and SHALL NOT be created for a bike absent from that table. `dbo.IndexedChunks` is the source of truth for retrievable text; `Chunk` nodes are projections carrying `SourceDocumentId` and the canonical chunk key `ChunkId`.
+
+Two anchor columns were added to `dbo.GraphNode` on 2026-08-01 and live in `schema.sql` (the guarded `COL_LENGTH('dbo.GraphNode', ...)` / `sys.indexes` block, lines ~1050–1062). The standalone migration file that first introduced them (`GraphNodeAnchorColumnsMigration.sql`) was deleted when the `Sql/Migrations/` folder was retired on 2026-08-02 — `schema.sql` is the single deployed source (see [Database Schema Deployment](../DevOps/database-schema.md)):
+
+- `ChunkId NVARCHAR(128) NULL` — the canonical vector-chunk key (format `{uploadId}-pdf-{i}`, mirroring `dbo.IndexedChunks.ChunkId`), backed by the filtered, non-null index `IX_GraphNode_ChunkId`. This is the vector→graph hop key: a vector hit's chunk id joins directly to the graph node(s) that chunk produced.
+- `SourceContentHash NVARCHAR(128) NULL` — a version/content-hash tag mirroring `ManualDocument.SourceContentHash`, so a graph node can be checked against the current content hash of the document it was extracted from.
+
+Both are populated by the ingestion pipeline: `GraphEntityIngestionService` stamps the hash on every node whose owning `ManualDocument` resolves, and `Chunk`-type nodes additionally carry `ChunkId` (see [Node types](#node-types) and [Enforcement gap](#enforcement-gap)).
 
 ## Node types
 
@@ -75,8 +82,10 @@ Identity is the deduplication key. Two extractions producing the same identity a
 | `Group` | canonical name | Club, forum, brand community, owners' association. |
 | `Event` | name + year | Rally, race, group ride, model launch. |
 | `Fact` | statement hash | Trivia or historical claim with provenance. Keeps unverifiable colour out of the mechanical subgraph, where a wrong number is a safety problem. |
-| `Chunk` | `IndexedChunks.Id` | Retrievable source text. Projection of `dbo.IndexedChunks`. |
-| `Document` | `IndexedArtifacts.Id` | Source document. Projection of `dbo.IndexedArtifacts`. |
+| `Chunk` | `IndexedChunks.Id` | Retrievable source text. Projection of `dbo.IndexedChunks`. Materialized deterministically (uuid5, no LLM) by the ingestion pipeline — one per Docling chunk — carrying `ChunkId` and a `PART_OF` edge to its owning `Document`. |
+| `Document` | `IndexedArtifacts.Id` | Source document. Projection of `dbo.IndexedArtifacts`. Materialized deterministically (uuid5, no LLM) by the ingestion pipeline — one per artifact. |
+
+Unlike the other node types, `Chunk` and `Document` are **deliberately emitted** by the ingestion pipeline rather than invented by the extractor (delivered 2026-08-01): `pdf_processor.py` materializes them via uuid5 with no LLM involvement, and extracted entity nodes are attributed to the specific chunks that contributed to their extraction through `SOURCED_FROM` edges (the `sourceChunkIds` sorted union across extraction batches). `graph_extractor.extract()` operates on whole chunks and never splits mid-chunk. See [Enforcement gap](#enforcement-gap) for exactly which of these shapes are validated at ingest.
 
 ## Edge types
 
@@ -191,13 +200,20 @@ WHERE  MATCH(r-(inc)->seg<-(near)-pl)
 
 ## Enforcement gap
 
-The vocabulary above is not yet enforced anywhere in the pipeline. Three gaps, in the order they should close:
+The vocabulary above is **partially enforced**. The 2026-08-01 vector↔graph anchor-ID contract (plan [`2026-08-01-vector-graph-anchor-id-contract.md`](../archive/plans/2026-08-01-vector-graph-anchor-id-contract.md)) closed the `Chunk`/`Document` subset of the gaps it created; the remaining closed-vocabulary items stay open and are tracked here as future work.
 
-1. **Extractor prompt.** The Python `graph_extractor` prompt does not carry the closed type lists, so the model is free to invent labels. Injecting the vocabularies is the highest-value change and the cheapest.
-2. **Ingest validation.** `GraphEntityIngestionService` maps `Type` and `RelationshipType` straight from JSON to the DTO with no check. It should reject or quarantine out-of-vocab values and log the rejection with the upload ID.
+**IMPLEMENTED (2026-08-01).** The `Chunk`/`Document` subset delivered by that plan:
+
+- **`Chunk`/`Document` node materialization.** `Chunk` and `Document` are now deliberately-emitted node types, materialized deterministically (uuid5, no LLM) by `pdf_processor.py` — one `Chunk` node per Docling chunk, one `Document` node per artifact — connected by `PART_OF` (Chunk → Document) edges, with extracted entity nodes linked to each contributing chunk by per-chunk `SOURCED_FROM` edges (`sourceChunkIds` sorted union across extraction batches). `graph_extractor.extract()` operates on whole chunks (`list[tuple[chunk_id, chunk_text]]`) and never splits mid-chunk.
+- **Narrow ingest validation.** `GraphEntityIngestionService` validates the D2-scoped subset: a node claiming `Type = Chunk` must carry a non-empty `chunkId` (missing ones are quarantined — logged and skipped, never thrown), and `SOURCED_FROM`/`PART_OF` edges are quarantined when their endpoint types violate the ontology rows (`SOURCED_FROM` must target a `Chunk`; a `Chunk`-sourced `PART_OF` must target a `Document`).
+
+**OPEN — future work (explicitly not closed by the 2026-08-01 plan; see its §8 Out of scope):**
+
+1. **Extractor prompt.** The Python `graph_extractor` prompt does not carry the closed type lists, so the model is free to invent labels for the ~25 domain node types. Injecting the vocabularies is the highest-value change and the cheapest.
+2. **Ingest quarantine for all types.** `GraphEntityIngestionService` validates only the `Chunk`/`Document`/`SOURCED_FROM`/`PART_OF` subset above. It still maps `Type` and `RelationshipType` straight from JSON to the DTO for every other type with no out-of-vocabulary check. It should reject or quarantine out-of-vocab values and log the rejection with the upload ID.
 3. **Database constraint.** `GraphNode` and `GraphEdge` have no `CHECK` constraint or lookup-table foreign key on their discriminators, and `GraphEdge` has no `EDGE CONSTRAINT` restricting endpoint types. Adding both makes the invariants unbypassable rather than merely documented.
 
-Until all three close, treat retrieved graph content as advisory and prefer the relational tables for anything safety-relevant.
+Until the open items close, treat retrieved graph content as advisory for the unvalidated types and prefer the relational tables for anything safety-relevant.
 
 ## Related documentation
 

@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import math
 import os
 import time
 import uuid
@@ -40,7 +39,13 @@ _ACTIVE_JOB_STATUSES = {
 
 PDF_CHUNKER_MAX_TOKENS = int(os.getenv("PDF_CHUNKER_MAX_TOKENS", "512"))
 
-BATCH_TOKEN_BUDGET = 4000  # must match graph_extractor.py's constant
+# Namespace for deterministic Chunk/Document graph-node ids (plan decision
+# D1, 6-Docs/plans/2026-08-01-vector-graph-anchor-id-contract.md): the same
+# standard UUID namespace (``uuid.NAMESPACE_DNS``) that
+# ``bike_graph_processor._node_id`` already seeds its own uuid5 ids from, so
+# every deterministically-derived node id in this codebase is produced the
+# same way.
+_GRAPH_NODE_NAMESPACE = uuid.NAMESPACE_DNS
 
 PIPELINE_STAGES = [
     "copying",
@@ -165,6 +170,27 @@ def _resolve_source_file_name(
         if base:
             return base
     return upload_id
+
+
+def _deterministic_node_id(seed: str) -> str:
+    """Derive a stable graph node id from ``seed`` via uuid5 — no LLM.
+
+    Used to materialize ``Chunk``/``Document`` graph nodes (plan decision
+    D1) so the same chunk/artifact id always maps to the same node id
+    across runs, matching the pattern ``bike_graph_processor._node_id``
+    already uses.
+
+    Args:
+        seed: A namespaced seed string (e.g. ``f"chunk:{chunk_id}"`` or
+            ``f"document:{upload_id}"``) that uniquely identifies the
+            node being materialized.
+
+    Returns:
+        The string form of a uuid5 derived from ``seed`` — identical
+        across repeated calls with the same seed, and distinct from the
+        raw seed string itself.
+    """
+    return str(uuid.uuid5(_GRAPH_NODE_NAMESPACE, seed))
 
 
 class PDFProcessor:
@@ -814,44 +840,98 @@ class PDFProcessor:
                 total_chunks,
             )
 
-            combined_text = "\n\n".join(chunk.text for chunk in chunks)
-            combined_chars = len(combined_text)
-            combined_tokens_approx = combined_chars // 4
-            expected_batches = max(
-                1, math.ceil(combined_chars / (BATCH_TOKEN_BUDGET * 4))
-            )
-            logger.info(
-                "component=pdf_processor job_id=%s stage=extracting_graph "
-                "combined_chars=%d combined_tokens_approx=%d expected_batches=%d",
-                sanitize_log_value(job_id),  # codeql[py/log-injection]
-                combined_chars,
-                combined_tokens_approx,
-                expected_batches,
-            )
-            logger.debug(
-                "component=pdf_processor job_id=%s combined_text_preview=%s",
-                sanitize_log_value(job_id),  # codeql[py/log-injection]
-                sanitize_log_value(
-                    combined_text[:2000]
-                    + ("...[truncated]" if len(combined_text) > 2000 else "")
-                ),
-            )
-
+            # T1's chunk-list contract: reuse each chunk's already-assigned
+            # id (the same f"{upload_id}-pdf-{i}" string just written into
+            # the search-chunks JSONL above) so the vector and graph sides
+            # share one canonical anchor key (plan decision D1). Batching
+            # and token-estimate logging now happen inside extract() itself.
             entities = await self._graph_extractor.extract(
-                combined_text, source_document_id=upload_id
+                [(records[i]["id"], chunk.text) for i, chunk in enumerate(chunks)],
+                source_document_id=upload_id,
             )
             self._raise_if_cancelled(job_id)
 
+            extracted_nodes: list[dict[str, Any]] = []
+            extracted_edges: list[dict[str, Any]] = []
             if entities and isinstance(entities, list) and len(entities) > 0:
-                node_count = len(entities[0].get("nodes", []))
-                edge_count = len(entities[0].get("edges", []))
+                extracted_nodes = list(entities[0].get("nodes", []) or [])
+                extracted_edges = list(entities[0].get("edges", []) or [])
                 logger.info(
                     "component=pdf_processor job_id=%s stage=extracting_graph "
                     "result=ok nodes=%d edges=%d",
                     sanitize_log_value(job_id),  # codeql[py/log-injection]
-                    node_count,
-                    edge_count,
+                    len(extracted_nodes),
+                    len(extracted_edges),
                 )
+
+            # Deterministically materialize one Chunk node per Docling chunk
+            # and one Document node for this artifact (uuid5 from the
+            # existing chunk/artifact id, no LLM — D1), per
+            # 6-Docs/reference/knowledge-graph-ontology.md. PART_OF links
+            # every Chunk node to the Document node; SOURCED_FROM links each
+            # extracted node only to the Chunk(s) named in that node's own
+            # sourceChunkIds — never to every chunk indiscriminately.
+            document_node_id = _deterministic_node_id(f"document:{upload_id}")
+            document_node: dict[str, Any] = {
+                "id": document_node_id,
+                "type": "Document",
+                "name": resolved_source_file,
+                "description": None,
+                "sourceDocumentId": upload_id,
+            }
+
+            chunk_id_to_node_id: dict[str, str] = {}
+            chunk_nodes: list[dict[str, Any]] = []
+            part_of_edges: list[dict[str, Any]] = []
+            for record in records:
+                chunk_id = record["id"]
+                node_id = _deterministic_node_id(f"chunk:{chunk_id}")
+                chunk_id_to_node_id[chunk_id] = node_id
+                chunk_nodes.append(
+                    {
+                        "id": node_id,
+                        "type": "Chunk",
+                        "chunkId": chunk_id,
+                        "name": record.get("title") or chunk_id,
+                        "description": None,
+                        "sourceDocumentId": upload_id,
+                    }
+                )
+                part_of_edges.append(
+                    {
+                        "fromNodeId": node_id,
+                        "toNodeId": document_node_id,
+                        "relationshipType": "PART_OF",
+                        "weight": 1.0,
+                        "context": None,
+                    }
+                )
+
+            sourced_from_edges: list[dict[str, Any]] = []
+            for node in extracted_nodes:
+                for source_chunk_id in node.get("sourceChunkIds", []) or []:
+                    target_node_id = chunk_id_to_node_id.get(source_chunk_id)
+                    if target_node_id is None:
+                        # sourceChunkIds referenced a chunk id this document
+                        # never produced (stale/foreign attribution) — never
+                        # invent a SOURCED_FROM edge to a nonexistent Chunk.
+                        continue
+                    sourced_from_edges.append(
+                        {
+                            "fromNodeId": node.get("id"),
+                            "toNodeId": target_node_id,
+                            "relationshipType": "SOURCED_FROM",
+                            "weight": 1.0,
+                            "context": None,
+                        }
+                    )
+
+            entities = [
+                {
+                    "nodes": [*extracted_nodes, *chunk_nodes, document_node],
+                    "edges": [*extracted_edges, *part_of_edges, *sourced_from_edges],
+                }
+            ]
 
             # ── Stage 7: Uploading graph ──────────────────────
             self._set_stage(job_id, "uploading-graph", "Uploading graph entities", 0.9)

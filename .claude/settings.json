@@ -1,8 +1,4 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "pwsh -File .claude/statusline-command.ps1"
-  },
   "hooks": {
     "PreToolUse": [
       {
@@ -14,6 +10,21 @@
           }
         ]
       }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "codegraph prompt-hook"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "mcp__codegraph__*"
     ]
   }
 }

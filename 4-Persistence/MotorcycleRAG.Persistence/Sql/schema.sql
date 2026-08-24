@@ -1043,6 +1043,25 @@ BEGIN
 END;
 GO
 
+-- Vector-graph anchor columns on GraphNode (plan
+-- 2026-08-01-vector-graph-anchor-id-contract.md, decision D4). Runs
+-- unconditionally (outside the CREATE TABLE guard above) so it also upgrades
+-- already-deployed databases where dbo.GraphNode already exists.
+IF COL_LENGTH('dbo.GraphNode', 'ChunkId') IS NULL
+    ALTER TABLE [dbo].[GraphNode] ADD [ChunkId] NVARCHAR(128) NULL;
+
+IF COL_LENGTH('dbo.GraphNode', 'SourceContentHash') IS NULL
+    ALTER TABLE [dbo].[GraphNode] ADD [SourceContentHash] NVARCHAR(128) NULL;
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = N'IX_GraphNode_ChunkId' AND object_id = OBJECT_ID(N'dbo.GraphNode')
+)
+    CREATE NONCLUSTERED INDEX [IX_GraphNode_ChunkId]
+        ON [dbo].[GraphNode] ([ChunkId])
+        WHERE [ChunkId] IS NOT NULL;
+GO
+
 -- Create ManualDocuments table
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ManualDocuments')
 BEGIN

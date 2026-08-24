@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -281,5 +282,247 @@ public class SubAgentToolHandlersTests
         var result = await _handlers.HandleExecuteAzureSearchAsync(call, CancellationToken.None);
 
         Assert.NotNull(result);
+    }
+
+    // -------------------------------------------------------------------------
+    // T10 RED: vector→graph anchor (indexed_artifact_id) — plan §4 T10 (1)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task HandleExecuteAzureSearchAsync_WhenResultHasIndexedArtifactId_SurfacesItInOutput()
+    {
+        // Arrange
+        var call = new AgentToolCall("call_123", "execute_azure_search", "{\"query\":\"test\"}");
+        var searchResult = new SearchResult
+        {
+            Id = "chunk-abc",
+            Content = "engine maintenance",
+            RelevanceScore = 0.95f,
+            Source = new SearchSource { SourceName = "index1" }
+        };
+        searchResult.Metadata["indexedArtifactId"] = "550e8400-e29b-41d4-a716-446655440000";
+
+        _searchClientMock.Setup(x => x.SearchAsync("test", It.IsAny<SearchOptions>()))
+            .ReturnsAsync(new[] { searchResult });
+
+        // Act
+        var result = await _handlers.HandleExecuteAzureSearchAsync(call, CancellationToken.None);
+
+        // Assert
+        using var doc = JsonDocument.Parse(result.Output);
+        var items = doc.RootElement;
+        Assert.True(items.GetArrayLength() >= 1, "Expected at least one result item in output array");
+        var firstItem = items[0];
+        var indexedArtifactId = firstItem.GetProperty("indexed_artifact_id").GetString();
+        Assert.Equal("550e8400-e29b-41d4-a716-446655440000", indexedArtifactId);
+    }
+
+    [Fact]
+    public async Task HandleSearchPdfIndexAsync_WhenResultHasIndexedArtifactId_SurfacesItInOutput()
+    {
+        // Arrange
+        var call = new AgentToolCall("call_pdf", "search_pdf_index", "{\"query\":\"honda\"}");
+        var searchResult = new SearchResult
+        {
+            Id = "chunk-pdf-1",
+            Content = "valve clearance procedure",
+            RelevanceScore = 0.88f,
+            Source = new SearchSource { SourceName = "manual.pdf", DocumentId = "guid-doc-1" }
+        };
+        searchResult.Metadata["indexedArtifactId"] = "660e8400-e29b-41d4-a716-446655440001";
+
+        _searchClientMock.Setup(x => x.SearchAsync("honda", It.IsAny<SearchOptions>()))
+            .ReturnsAsync(new[] { searchResult });
+
+        // Act
+        var result = await _handlers.HandleSearchPdfIndexAsync(call, CancellationToken.None);
+
+        // Assert
+        using var doc = JsonDocument.Parse(result.Output);
+        var items = doc.RootElement;
+        Assert.True(items.GetArrayLength() >= 1, "Expected at least one result item in output array");
+        var firstItem = items[0];
+        var indexedArtifactId = firstItem.GetProperty("indexed_artifact_id").GetString();
+        Assert.Equal("660e8400-e29b-41d4-a716-446655440001", indexedArtifactId);
+    }
+
+    // -------------------------------------------------------------------------
+    // T10 RED: graph→vector anchors (chunk_id, source_document_id) — plan §4 T10 (2)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task HandleSearchGraphNodesAsync_WhenChunkNodeHasAnchors_SurfacesThemInOutput()
+    {
+        // Arrange
+        var sourceDocId = Guid.NewGuid();
+        var node = new GraphNodeDto
+        {
+            Id = Guid.NewGuid(),
+            Name = "Engine Section",
+            Type = "Chunk",
+            Description = "Section about engine maintenance",
+            ChunkId = "chunk-c-1",
+            SourceDocumentId = sourceDocId
+        };
+
+        var call = new AgentToolCall("call_graph", "search_graph_nodes", "{\"search_term\":\"engine\"}");
+        _graphRepoMock.Setup(x => x.SearchNodesAsync("engine", null, 10, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<GraphNodeDto> { node });
+
+        // Act
+        var result = await _handlers.HandleSearchGraphNodesAsync(call, CancellationToken.None);
+
+        // Assert
+        using var doc = JsonDocument.Parse(result.Output);
+        var items = doc.RootElement;
+        Assert.True(items.GetArrayLength() >= 1, "Expected at least one node in output array");
+        var firstNode = items[0];
+        var chunkId = firstNode.GetProperty("chunk_id").GetString();
+        Assert.Equal("chunk-c-1", chunkId);
+        var sourceDocumentId = firstNode.GetProperty("source_document_id").GetString();
+        Assert.Equal(sourceDocId.ToString(), sourceDocumentId);
+    }
+
+    [Fact]
+    public async Task HandleGetNeighboursAsync_WhenChunkNodesHaveAnchors_SurfacesThemInNestedOutput()
+    {
+        // Arrange
+        var fromNodeId = Guid.NewGuid();
+        var toNodeId = Guid.NewGuid();
+        var sourceDocId = Guid.NewGuid();
+
+        var fromNode = new GraphNodeDto
+        {
+            Id = fromNodeId,
+            Name = "Chunk A",
+            Type = "Chunk",
+            ChunkId = "chunk-n-1",
+            SourceDocumentId = sourceDocId
+        };
+        var toNode = new GraphNodeDto
+        {
+            Id = toNodeId,
+            Name = "Chunk B",
+            Type = "Chunk",
+            ChunkId = "chunk-n-2",
+            SourceDocumentId = sourceDocId
+        };
+        var traversal = new GraphTraversalResultDto(fromNode, "PART_OF", 1.0, null, toNode);
+
+        _graphRepoMock.Setup(x => x.GetNeighboursAsync(fromNodeId, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<GraphTraversalResultDto> { traversal });
+
+        var call = new AgentToolCall("call_neighbours", "get_neighbours", $"{{\"node_id\":\"{fromNodeId}\"}}");
+
+        // Act
+        var result = await _handlers.HandleGetNeighboursAsync(call, CancellationToken.None);
+
+        // Assert
+        using var doc = JsonDocument.Parse(result.Output);
+        var items = doc.RootElement;
+        Assert.True(items.GetArrayLength() >= 1, "Expected at least one traversal result");
+        var first = items[0];
+
+        // from node
+        var fromObj = first.GetProperty("from");
+        Assert.Equal("chunk-n-1", fromObj.GetProperty("chunk_id").GetString());
+        Assert.Equal(sourceDocId.ToString(), fromObj.GetProperty("source_document_id").GetString());
+
+        // to node
+        var toObj = first.GetProperty("to");
+        Assert.Equal("chunk-n-2", toObj.GetProperty("chunk_id").GetString());
+        Assert.Equal(sourceDocId.ToString(), toObj.GetProperty("source_document_id").GetString());
+    }
+
+    [Fact]
+    public async Task HandleFindPathsAsync_WhenChunkNodesHaveAnchors_SurfacesThemInNestedOutput()
+    {
+        // Arrange
+        var sourceId = Guid.NewGuid();
+        var intermediateId = Guid.NewGuid();
+        var targetId = Guid.NewGuid();
+        var sourceDocId = Guid.NewGuid();
+
+        var path = new GraphPathResultDto(
+            new GraphNodeDto { Id = sourceId, Name = "Chunk S", Type = "Chunk", ChunkId = "chunk-p-s", SourceDocumentId = sourceDocId },
+            "PART_OF",
+            new GraphNodeDto { Id = intermediateId, Name = "Chunk I", Type = "Chunk", ChunkId = "chunk-p-i", SourceDocumentId = sourceDocId },
+            "SOURCED_FROM",
+            new GraphNodeDto { Id = targetId, Name = "Chunk T", Type = "Chunk", ChunkId = "chunk-p-t", SourceDocumentId = sourceDocId });
+
+        _graphRepoMock.Setup(x => x.FindPathsAsync(sourceId, 3, 20, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<GraphPathResultDto> { path });
+
+        var call = new AgentToolCall("call_paths", "find_paths", $"{{\"source_node_id\":\"{sourceId}\"}}");
+
+        // Act
+        var result = await _handlers.HandleFindPathsAsync(call, CancellationToken.None);
+
+        // Assert
+        using var doc = JsonDocument.Parse(result.Output);
+        var items = doc.RootElement;
+        Assert.True(items.GetArrayLength() >= 1, "Expected at least one path result");
+        var first = items[0];
+
+        var sourceObj = first.GetProperty("source");
+        Assert.Equal("chunk-p-s", sourceObj.GetProperty("chunk_id").GetString());
+        Assert.Equal(sourceDocId.ToString(), sourceObj.GetProperty("source_document_id").GetString());
+
+        var intermediateObj = first.GetProperty("intermediate");
+        Assert.Equal("chunk-p-i", intermediateObj.GetProperty("chunk_id").GetString());
+        Assert.Equal(sourceDocId.ToString(), intermediateObj.GetProperty("source_document_id").GetString());
+
+        var targetObj = first.GetProperty("target");
+        Assert.Equal("chunk-p-t", targetObj.GetProperty("chunk_id").GetString());
+        Assert.Equal(sourceDocId.ToString(), targetObj.GetProperty("source_document_id").GetString());
+    }
+
+    [Fact]
+    public async Task HandleGetEdgesByTypeAsync_WhenChunkNodesHaveAnchors_SurfacesThemInNestedOutput()
+    {
+        // Arrange
+        var fromId = Guid.NewGuid();
+        var toId = Guid.NewGuid();
+        var sourceDocId = Guid.NewGuid();
+
+        var fromNode = new GraphNodeDto
+        {
+            Id = fromId,
+            Name = "Chunk E1",
+            Type = "Chunk",
+            ChunkId = "chunk-e-1",
+            SourceDocumentId = sourceDocId
+        };
+        var toNode = new GraphNodeDto
+        {
+            Id = toId,
+            Name = "Chunk E2",
+            Type = "Chunk",
+            ChunkId = "chunk-e-2",
+            SourceDocumentId = sourceDocId
+        };
+        var edge = new GraphTraversalResultDto(fromNode, "SOURCED_FROM", 0.9, null, toNode);
+
+        _graphRepoMock.Setup(x => x.GetEdgesByTypeAsync("SOURCED_FROM", 50, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<GraphTraversalResultDto> { edge });
+
+        var call = new AgentToolCall("call_edges", "get_edges_by_type", "{\"relationship_type\":\"SOURCED_FROM\"}");
+
+        // Act
+        var result = await _handlers.HandleGetEdgesByTypeAsync(call, CancellationToken.None);
+
+        // Assert
+        using var doc = JsonDocument.Parse(result.Output);
+        var items = doc.RootElement;
+        Assert.True(items.GetArrayLength() >= 1, "Expected at least one edge result");
+        var first = items[0];
+
+        var fromObj = first.GetProperty("from");
+        Assert.Equal("chunk-e-1", fromObj.GetProperty("chunk_id").GetString());
+        Assert.Equal(sourceDocId.ToString(), fromObj.GetProperty("source_document_id").GetString());
+
+        var toObj = first.GetProperty("to");
+        Assert.Equal("chunk-e-2", toObj.GetProperty("chunk_id").GetString());
+        Assert.Equal(sourceDocId.ToString(), toObj.GetProperty("source_document_id").GetString());
     }
 }

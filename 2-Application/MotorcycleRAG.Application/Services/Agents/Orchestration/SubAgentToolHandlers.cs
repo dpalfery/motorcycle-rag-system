@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using MotorcycleRAG.Contracts.Interfaces;
 using MotorcycleRAG.Contracts.Models.DTOs;
+using MotorcycleRAG.Contracts.Models.DTOs.Graph;
 using MotorcycleRAG.Contracts.Repositories;
 using MotorcycleRAG.Core.Options;
 using System.Text.Json;
@@ -93,7 +94,13 @@ public sealed class SubAgentToolHandlers
             id = r.Id,
             content = r.Content,
             score = r.RelevanceScore,
-            source = r.Source.SourceName
+            source = r.Source.SourceName,
+            // T10: vector→graph anchor — the IndexedArtifacts.IndexedArtifactId GUID
+            // (a top-level filterable index field, not IndexedChunks.ChunkId).
+            // AzureSearchQueryService deserializes the index document into SearchResult
+            // and projects the anchor into SearchResult.Metadata["indexedArtifactId"];
+            // this reads it from there. Null when the index document predates T9.
+            indexed_artifact_id = TryGetMetadataString(r.Metadata, "indexedArtifactId")
         });
 
         return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
@@ -215,7 +222,13 @@ public sealed class SubAgentToolHandlers
             content = r.Content,
             score = r.RelevanceScore,
             source = r.Source.SourceName,
-            document_id = r.Source.DocumentId
+            document_id = r.Source.DocumentId,
+            // T10: vector→graph anchor — the IndexedArtifacts.IndexedArtifactId GUID
+            // (a top-level filterable index field, not IndexedChunks.ChunkId).
+            // AzureSearchQueryService deserializes the index document into SearchResult
+            // and projects the anchor into SearchResult.Metadata["indexedArtifactId"];
+            // this reads it from there. Null when the index document predates T9.
+            indexed_artifact_id = TryGetMetadataString(r.Metadata, "indexedArtifactId")
         });
 
         return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
@@ -239,7 +252,7 @@ public sealed class SubAgentToolHandlers
 
         _logger.LogInformation("search_graph_nodes completed: term={SearchTerm} count={Count}", searchTerm, nodes.Count);
 
-        var payload = nodes.Select(n => new { id = n.Id, name = n.Name, type = n.Type, description = n.Description });
+        var payload = nodes.Select(ProjectNode);
         return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
     }
 
@@ -265,11 +278,11 @@ public sealed class SubAgentToolHandlers
 
         var payload = results.Select(r => new
         {
-            from = new { id = r.FromNode.Id, name = r.FromNode.Name, type = r.FromNode.Type },
+            from = ProjectNode(r.FromNode),
             relationship = r.RelationshipType,
             weight = r.Weight,
             context = r.Context,
-            to = new { id = r.ToNode.Id, name = r.ToNode.Name, type = r.ToNode.Type }
+            to = ProjectNode(r.ToNode)
         });
         return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
     }
@@ -297,11 +310,11 @@ public sealed class SubAgentToolHandlers
 
         var payload = paths.Select(p => new
         {
-            source = new { id = p.SourceNode.Id, name = p.SourceNode.Name, type = p.SourceNode.Type },
+            source = ProjectNode(p.SourceNode),
             first_relationship = p.FirstRelationship,
-            intermediate = new { id = p.IntermediateNode.Id, name = p.IntermediateNode.Name, type = p.IntermediateNode.Type },
+            intermediate = ProjectNode(p.IntermediateNode),
             second_relationship = p.SecondRelationship,
-            target = new { id = p.TargetNode.Id, name = p.TargetNode.Name, type = p.TargetNode.Type }
+            target = ProjectNode(p.TargetNode)
         });
         return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
     }
@@ -325,10 +338,10 @@ public sealed class SubAgentToolHandlers
 
         var payload = results.Select(r => new
         {
-            from = new { id = r.FromNode.Id, name = r.FromNode.Name, type = r.FromNode.Type },
+            from = ProjectNode(r.FromNode),
             relationship = r.RelationshipType,
             weight = r.Weight,
-            to = new { id = r.ToNode.Id, name = r.ToNode.Name, type = r.ToNode.Type }
+            to = ProjectNode(r.ToNode)
         });
         return new AgentToolOutput(call.CallId, JsonSerializer.Serialize(payload));
     }
@@ -350,5 +363,33 @@ public sealed class SubAgentToolHandlers
         {
             return JsonDocument.Parse("{}").RootElement;
         }
+    }
+
+    /// <summary>
+    /// Projects a <see cref="GraphNodeDto"/> into the JSON payload shape emitted by the
+    /// graph handlers. Includes the T10 graph→vector anchors (<c>chunk_id</c>,
+    /// <c>source_document_id</c>) which are null when the node was not sourced from a chunk.
+    /// </summary>
+    private static object ProjectNode(GraphNodeDto n) => new
+    {
+        id = n.Id,
+        name = n.Name,
+        type = n.Type,
+        description = n.Description,
+        chunk_id = n.ChunkId,
+        source_document_id = n.SourceDocumentId
+    };
+
+    /// <summary>
+    /// Reads a string-valued anchor from a search-result metadata bag.
+    /// Returns null when the key is absent or the value is null — the vector handlers
+    /// emit <c>indexed_artifact_id: null</c> in that case, consistent with how other
+    /// optional nullable fields are surfaced.
+    /// </summary>
+    private static string? TryGetMetadataString(Dictionary<string, object>? metadata, string key)
+    {
+        if (metadata is null)
+            return null;
+        return metadata.TryGetValue(key, out var value) ? value?.ToString() : null;
     }
 }

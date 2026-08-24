@@ -1,0 +1,38 @@
+# ObservMe project override — RAW LOCAL DEBUG capture (Option B).
+# WARNING: exports UNREDACTED prompt/response text (including system prompt,
+# user input, and model output) to the OTLP sink at localhost:4318.
+# Use only on a trusted local dashboard you control. Set prompts/responses back
+# to false (or re-comment this file) before sharing or committing.
+#
+# Inherits from global ~/.pi/agent/observme.yaml, which already sets:
+#   enabled: true
+#   otlp.endpoint: http://localhost:4318  (protocol: http/protobuf)
+#   privacy.allowInsecureTransport: true
+# This file overrides only capture / privacy / limits via deep merge.
+observme:
+  capture:
+    prompts: true
+    responses: true
+    # Leave these off unless you also want them in the dashboard:
+    thinking: true
+    toolArguments: true
+    toolResults: true
+    bashCommands: true
+    bashOutput: false
+    filePaths: false   # reserved; no live recording point
+
+  privacy:
+    # Option B (raw): redaction OFF + unsafe capture acknowledged.
+    # No OBSERVME_HASH_SALT is required in this mode.
+    redactionEnabled: false
+    allowUnsafeCapture: true
+
+  limits:
+    # Raised from the 12000 default so the full (large) system prompt is not truncated.
+    maxPromptChars: 60000
+    maxResponseChars: 60000
+    # Unchanged from defaults:
+    # maxToolArgumentChars: 8000
+    # maxToolResultChars: 16000
+    # maxBashOutputChars: 16000
+    # maxLogBodyChars: 32000

@@ -85,10 +85,8 @@ public sealed class ControllerUseCaseServicesTests
         var service = new ProcessorArtifactService(
             blobStorage.Object,
             Options.Create(new BlobStorageOptions { RawUploadsContainer = "raw-uploads" }),
-            Mock.Of<IChunkIndexingService>(),
+            Mock.Of<ISearchChunkIndexingCoordinator>(),
             Mock.Of<IIngestionJobRepository>(),
-            Mock.Of<IIndexedArtifactRepository>(),
-            Mock.Of<IIndexedChunkRepository>(),
             tokenService.Object,
             Mock.Of<IIngestionJobService>(),
             NullLogger<ProcessorArtifactService>.Instance);

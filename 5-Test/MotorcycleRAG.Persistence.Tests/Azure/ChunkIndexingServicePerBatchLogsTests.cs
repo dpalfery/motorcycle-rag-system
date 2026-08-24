@@ -56,7 +56,7 @@ public class ChunkIndexingServicePerBatchLogsTests
         var jsonl = "{\"id\":\"c1\",\"category\":\"dirt\"}\n{\"id\":\"c2\",\"category\":\"dirt\"}\n";
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(jsonl));
 
-        await sut.IndexFromJsonlAsync(stream, uploadId: Guid.NewGuid().ToString(), CancellationToken.None);
+        await sut.IndexFromJsonlAsync(stream, uploadId: Guid.NewGuid().ToString(), Guid.Empty, Guid.Empty, null, CancellationToken.None);
 
         // The batch-end summary is the only Information log that carries BOTH IndexName and
         // DurationMs (the start line has IndexName but no duration; the per-upload aggregate
